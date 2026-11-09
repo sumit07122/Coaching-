@@ -9,6 +9,9 @@ import {
   BarChart3,
   Settings,
   UserCog,
+  CalendarDays,
+  Wallet,
+  ShieldCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -76,6 +79,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <span>Attendance</span>
           </NavLink>
 
+          <NavLink
+            to="/timetable"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            onClick={onClose}
+          >
+            <CalendarDays size={18} />
+            <span>Class Timetable</span>
+          </NavLink>
+
           <span className="nav-section-title" style={{ marginTop: '12px' }}>
             Finance & Intelligence
           </span>
@@ -97,6 +109,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             >
               Dues
             </span>
+          </NavLink>
+
+          <NavLink
+            to="/expenses"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            onClick={onClose}
+          >
+            <Wallet size={18} />
+            <span>Expenses & Outflow</span>
           </NavLink>
 
           <NavLink
@@ -147,6 +168,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <GraduationCap size={18} />
             <span>Teacher Portal View</span>
           </NavLink>
+
+          {(currentUser?.role === 'super_admin' || !import.meta.env.PROD) && (
+            <NavLink
+              to="/superadmin"
+              className="nav-item"
+              onClick={onClose}
+              style={{
+                backgroundColor: '#0f172a',
+                color: '#38bdf8',
+                fontWeight: 600,
+                marginTop: '4px',
+              }}
+            >
+              <ShieldCheck size={18} />
+              <span>Super Admin Portal</span>
+            </NavLink>
+          )}
         </nav>
 
         <div className="sidebar-footer">

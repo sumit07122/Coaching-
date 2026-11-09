@@ -16,6 +16,8 @@ const Fees = lazy(() => import('./pages/Fees').then(m => ({ default: m.Fees })))
 const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Reports })));
 const Staff = lazy(() => import('./pages/Staff').then(m => ({ default: m.Staff })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const Expenses = lazy(() => import('./pages/Expenses').then(m => ({ default: m.Expenses })));
+const Timetable = lazy(() => import('./pages/Timetable').then(m => ({ default: m.Timetable })));
 
 // Dedicated Teacher Portal pages
 const TeacherLayout = lazy(() => import('./components/layout/TeacherLayout').then(m => ({ default: m.TeacherLayout })));
@@ -24,6 +26,14 @@ const TeacherClasses = lazy(() => import('./pages/teacher/TeacherClasses').then(
 const TeacherAttendanceTerminal = lazy(() => import('./pages/teacher/TeacherAttendanceTerminal').then(m => ({ default: m.TeacherAttendanceTerminal })));
 const TeacherHistory = lazy(() => import('./pages/teacher/TeacherHistory').then(m => ({ default: m.TeacherHistory })));
 const TeacherProfile = lazy(() => import('./pages/teacher/TeacherProfile').then(m => ({ default: m.TeacherProfile })));
+
+// Dedicated FIXIA Super Admin Platform pages (Phase 15 Governance)
+const SuperAdminLayout = lazy(() => import('./components/layout/SuperAdminLayout').then(m => ({ default: m.SuperAdminLayout })));
+const SuperAdminDashboard = lazy(() => import('./pages/superadmin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
+const SuperAdminInstitutes = lazy(() => import('./pages/superadmin/SuperAdminInstitutes').then(m => ({ default: m.SuperAdminInstitutes })));
+const SuperAdminSubscriptions = lazy(() => import('./pages/superadmin/SuperAdminSubscriptions').then(m => ({ default: m.SuperAdminSubscriptions })));
+const SuperAdminLicenses = lazy(() => import('./pages/superadmin/SuperAdminLicenses').then(m => ({ default: m.SuperAdminLicenses })));
+const SuperAdminAudit = lazy(() => import('./pages/superadmin/SuperAdminAudit').then(m => ({ default: m.SuperAdminAudit })));
 
 const PageLoader: React.FC = () => (
   <div className="page-loading-container" role="status" aria-label="Loading page">
@@ -56,6 +66,8 @@ export const App: React.FC = () => {
                 <Route path="batches" element={<Batches />} />
                 <Route path="attendance" element={<Attendance />} />
                 <Route path="fees" element={<Fees />} />
+                <Route path="expenses" element={<Expenses />} />
+                <Route path="timetable" element={<Timetable />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="staff" element={<Staff />} />
                 <Route
@@ -82,6 +94,22 @@ export const App: React.FC = () => {
                 <Route path="attendance/:batchId" element={<TeacherAttendanceTerminal />} />
                 <Route path="history" element={<TeacherHistory />} />
                 <Route path="profile" element={<TeacherProfile />} />
+              </Route>
+
+              {/* Dedicated FIXIA Platform Super Admin Portal Routes (Phase 15 Governance) */}
+              <Route
+                path="/superadmin"
+                element={
+                  <ProtectedRoute allowedRoles={['super_admin']}>
+                    <SuperAdminLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<SuperAdminDashboard />} />
+                <Route path="institutes" element={<SuperAdminInstitutes />} />
+                <Route path="subscriptions" element={<SuperAdminSubscriptions />} />
+                <Route path="licenses" element={<SuperAdminLicenses />} />
+                <Route path="audit" element={<SuperAdminAudit />} />
               </Route>
 
               {/* Wildcard fallback */}

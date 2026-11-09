@@ -57,6 +57,7 @@ describe('Production Readiness Audit — 1. Security & Isolation', () => {
       staff: { canManageFinances: false, canReversePayments: false, canManageSettings: false },
       faculty: { canManageFinances: false, canReversePayments: false, canManageSettings: false },
       teacher: { canManageFinances: false, canReversePayments: false, canManageSettings: false },
+      super_admin: { canManageFinances: true, canReversePayments: true, canManageSettings: true },
     };
 
     // Owner can do everything

@@ -765,3 +765,4 @@ export const TeacherAttendanceTerminal: React.FC = () => {
     </div>
   );
 };
+

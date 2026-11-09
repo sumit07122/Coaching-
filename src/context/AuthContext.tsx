@@ -47,6 +47,7 @@ export interface AuthContextType {
   isOwner: boolean;
   isAdmin: boolean;
   isStaff: boolean;
+  isSuperAdmin: boolean;
   canManageFinances: boolean;
   canManageStaff: boolean;
   canManageSettings: boolean;
@@ -132,6 +133,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Sync Supabase user details, memberships, and institutes
   const syncSupabaseUserAndInstitute = async (user: any) => {
     try {
+      // 0. Check if user is a Platform Super Admin (Phase 15 Governance)
+      const { data: platformAdmin } = await supabase
+        .from('platform_admins')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (platformAdmin) {
+        const mappedAdmin: UserProfile = {
+          id: user.id,
+          name: platformAdmin.full_name || user.email.split('@')[0],
+          email: user.email,
+          role: 'super_admin',
+          roleTitle: 'FIXIA Platform Super Admin',
+          instituteId: 'FIXIA-PLATFORM-HQ',
+          instituteName: 'FIXIA Cloud Infrastructure',
+        };
+        setCurrentUser(mappedAdmin);
+        setIsAuthenticated(true);
+        return;
+      }
+
       // 1. Fetch user profile from public.profiles
       const { data: profile } = await supabase
         .from('profiles')
@@ -268,6 +292,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isOwner = role === 'owner';
   const isAdmin = role === 'admin';
   const isStaff = role === 'staff' || role === 'faculty';
+  const isSuperAdmin = role === 'super_admin';
 
   const canManageFinances = isOwner || isAdmin;
   const canManageStaff = isOwner || isAdmin;
@@ -651,6 +676,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isOwner,
         isAdmin,
         isStaff,
+        isSuperAdmin,
         canManageFinances,
         canManageStaff,
         canManageSettings,

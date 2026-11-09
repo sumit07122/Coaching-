@@ -27,6 +27,10 @@ import {
   BatchSchedule,
   CreateBatchScheduleInput,
   StudentBatchTransfer,
+  PlatformInstituteRecord,
+  SoftwareLicenseRecord,
+  PlatformAuditLog,
+  CreatePlatformInstituteInput,
 } from '../types';
 import {
   INITIAL_INSTITUTE_CONFIG,
@@ -40,6 +44,9 @@ import {
   INITIAL_EXPENSES,
   INITIAL_BATCH_SCHEDULES,
   INITIAL_BATCH_TRANSFERS,
+  INITIAL_PLATFORM_INSTITUTES,
+  INITIAL_SOFTWARE_LICENSES,
+  INITIAL_PLATFORM_AUDIT_LOGS,
   generateInitialStudents,
   generateInitialAttendance,
   generateInitialAttendanceSessions,
@@ -166,6 +173,17 @@ interface AppContextType {
   addAnnouncement: (title: string, message: string, priority?: 'normal' | 'high') => InAppNotification;
   updateCommercialSubscription: (updates: Partial<CommercialSubscription>) => void;
   logAuditEvent: (action: string, entityType: any, entityId: string, details?: any) => void;
+  // Phase 15: FIXIA Super Admin Platform Governance
+  platformInstitutes: PlatformInstituteRecord[];
+  softwareLicenses: SoftwareLicenseRecord[];
+  platformAuditLogs: PlatformAuditLog[];
+  createPlatformInstitute: (input: CreatePlatformInstituteInput) => PlatformInstituteRecord;
+  updateInstituteStatus: (instituteId: string, status: 'active' | 'suspended' | 'trial', reason: string) => void;
+  updateInstituteCommercialPlan: (instituteId: string, updates: Partial<CommercialSubscription>, reason: string) => void;
+  issueSoftwareLicense: (input: { instituteId: string; version: string; maxStudents: number; offlineSupport: boolean }) => SoftwareLicenseRecord;
+  revokeSoftwareLicense: (licenseId: string, reason: string) => void;
+  recordPlatformAudit: (action: PlatformAuditLog['action'], instituteId: string, details: Record<string, any>, reason: string) => void;
+
   updateInstituteConfig: (updates: Partial<InstituteConfig>) => void;
   resetToDemoDefaults: () => void;
 }
@@ -285,6 +303,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_BATCH_TRANSFERS;
   });
 
+  // Phase 15: FIXIA Super Admin Platform Governance State
+  const [platformInstitutes, setPlatformInstitutes] = useState<PlatformInstituteRecord[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}platform_institutes`);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return INITIAL_PLATFORM_INSTITUTES;
+  });
+
+  const [softwareLicenses, setSoftwareLicenses] = useState<SoftwareLicenseRecord[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}software_licenses`);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return INITIAL_SOFTWARE_LICENSES;
+  });
+
+  const [platformAuditLogs, setPlatformAuditLogs] = useState<PlatformAuditLog[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}platform_audit_logs`);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return INITIAL_PLATFORM_AUDIT_LOGS;
+  });
+
   const [instituteConfig, setInstituteConfig] = useState<InstituteConfig>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}config`);
     if (saved) {
@@ -358,6 +401,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_PREFIX}config`, JSON.stringify(instituteConfig));
   }, [instituteConfig]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}platform_institutes`, JSON.stringify(platformInstitutes));
+  }, [platformInstitutes]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}software_licenses`, JSON.stringify(softwareLicenses));
+  }, [softwareLicenses]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}platform_audit_logs`, JSON.stringify(platformAuditLogs));
+  }, [platformAuditLogs]);
 
   // Load and synchronize data from PostgreSQL database via Supabase when configured
   useEffect(() => {
@@ -1730,6 +1785,212 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Phase 15: Platform Governance Actions
+  const recordPlatformAudit = (
+    action: PlatformAuditLog['action'],
+    targetInstituteId: string,
+    details: Record<string, any>,
+    reason: string
+  ) => {
+    const inst = platformInstitutes.find(i => i.id === targetInstituteId);
+    const newLog: PlatformAuditLog = {
+      id: `PAUD-${Date.now()}`,
+      action,
+      targetInstituteId,
+      targetInstituteName: inst ? inst.name : targetInstituteId,
+      actorEmail: currentUser?.email || 'superadmin@fixia.in',
+      actorId: currentUser?.id || 'USR-SUPERADMIN-01',
+      details,
+      reason,
+      timestamp: new Date().toISOString(),
+    };
+    setPlatformAuditLogs(prev => [newLog, ...prev]);
+  };
+
+  const createPlatformInstitute = (input: CreatePlatformInstituteInput): PlatformInstituteRecord => {
+    const newId = `INST-${input.city.substring(0, 3).toUpperCase()}-${String(platformInstitutes.length + 1).padStart(2, '0')}`;
+    const newSubId = `COMM-SUB-${String(platformInstitutes.length + 1).padStart(2, '0')}`;
+
+    const newSubscription: CommercialSubscription = {
+      id: newSubId,
+      instituteId: newId,
+      modelType: input.modelType,
+      planName: input.planName,
+      status: input.status === 'trial' ? 'trial' : 'active',
+      subscriptionStatus: input.status === 'trial' ? 'trial' : 'active',
+      licenceStatus: input.modelType === 'one_time_licence' ? 'active' : 'not_applicable',
+      studentLimit: input.studentLimit,
+      enabledModules: ['students', 'batches', 'attendance', 'fees', 'expenses', 'timetable', 'reports'],
+      billingCycle: input.billingCycle || 'monthly',
+      recurringAmount: input.recurringAmount || 1499,
+      renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      hostingResponsibility: 'FIXIA Cloud Managed',
+      supportEntitlement: '24/7 Priority Support',
+      sourceCodeOwnership: false,
+    };
+
+    const newInstRecord: PlatformInstituteRecord = {
+      id: newId,
+      name: input.name,
+      category: input.category,
+      categoryLabel: input.category,
+      city: input.city,
+      state: input.state,
+      phone: input.directorPhone,
+      email: input.directorEmail,
+      directorName: input.directorName,
+      regNumber: input.regNumber || `REG-${newId}`,
+      academicSession: '2026-2027',
+      status: input.status || 'active',
+      createdAt: new Date().toISOString(),
+      studentCount: 0,
+      batchCount: 0,
+      facultyCount: 1,
+      subscription: newSubscription,
+    };
+
+    setPlatformInstitutes(prev => [newInstRecord, ...prev]);
+    recordPlatformAudit('CREATE_INSTITUTE', newId, { plan: input.planName, limit: input.studentLimit }, 'Super Admin created and provisioned new tenant institute.');
+    return newInstRecord;
+  };
+
+  const updateInstituteStatus = (
+    instituteId: string,
+    newStatus: 'active' | 'suspended' | 'trial',
+    reason: string
+  ) => {
+    setPlatformInstitutes(prev =>
+      prev.map(inst => {
+        if (inst.id === instituteId) {
+          return {
+            ...inst,
+            status: newStatus,
+            suspensionReason: newStatus === 'suspended' ? reason : undefined,
+          };
+        }
+        return inst;
+      })
+    );
+    recordPlatformAudit(
+      newStatus === 'suspended' ? 'SUSPEND_INSTITUTE' : 'ACTIVATE_INSTITUTE',
+      instituteId,
+      { status: newStatus },
+      reason
+    );
+  };
+
+  const updateInstituteCommercialPlan = (
+    instituteId: string,
+    updates: Partial<CommercialSubscription>,
+    reason: string
+  ) => {
+    setPlatformInstitutes(prev =>
+      prev.map(inst => {
+        if (inst.id === instituteId) {
+          const updatedSub = { ...inst.subscription, ...updates };
+          return {
+            ...inst,
+            subscription: updatedSub,
+          };
+        }
+        return inst;
+      })
+    );
+
+    // If it's the current institute, also update the active commercial subscription
+    if (instituteId === instituteConfig.name || instituteId === 'INST-MTH-01') {
+      setCommercialSubscription(prev => ({ ...prev, ...updates }));
+    }
+
+    recordPlatformAudit('UPDATE_QUOTA', instituteId, updates, reason);
+  };
+
+  const issueSoftwareLicense = (input: {
+    instituteId: string;
+    version: string;
+    maxStudents: number;
+    offlineSupport: boolean;
+  }): SoftwareLicenseRecord => {
+    const inst = platformInstitutes.find(i => i.id === input.instituteId);
+    const randPart1 = Math.floor(1000 + Math.random() * 9000);
+    const randPart2 = Math.floor(1000 + Math.random() * 9000);
+    const randPart3 = Math.floor(1000 + Math.random() * 9000);
+    const generatedKey = `FIXIA-LIC-${randPart1}-${randPart2}-${randPart3}`;
+
+    const newLicense: SoftwareLicenseRecord = {
+      id: `LIC-${Date.now()}`,
+      licenseKey: generatedKey,
+      instituteId: input.instituteId,
+      instituteName: inst ? inst.name : input.instituteId,
+      modelType: 'one_time_licence',
+      licensedVersion: input.version || 'v2.4.0',
+      status: 'active',
+      licenseStartDate: new Date().toISOString().split('T')[0],
+      maxStudents: input.maxStudents,
+      hardwareFingerprint: input.offlineSupport ? `SRV-OFFLINE-${Date.now().toString().slice(-6)}` : undefined,
+      offlineChecksum: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
+      maintenanceValidUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      sourceCodeOwnership: false,
+      createdAt: new Date().toISOString(),
+      issuedBy: currentUser?.email || 'superadmin@fixia.in',
+    };
+
+    setSoftwareLicenses(prev => [newLicense, ...prev]);
+
+    // Also update the institute subscription record with the license key
+    setPlatformInstitutes(prev =>
+      prev.map(i => {
+        if (i.id === input.instituteId) {
+          return {
+            ...i,
+            subscription: {
+              ...i.subscription,
+              modelType: 'one_time_licence',
+              licenceKey: generatedKey,
+              licenceStatus: 'active',
+              studentLimit: input.maxStudents,
+            },
+          };
+        }
+        return i;
+      })
+    );
+
+    recordPlatformAudit('ISSUE_LICENSE', input.instituteId, { licenseKey: generatedKey, version: input.version }, 'Issued Model B software license key.');
+    return newLicense;
+  };
+
+  const revokeSoftwareLicense = (licenseId: string, reason: string) => {
+    let targetInstId = '';
+    setSoftwareLicenses(prev =>
+      prev.map(lic => {
+        if (lic.id === licenseId) {
+          targetInstId = lic.instituteId;
+          return { ...lic, status: 'suspended' as const };
+        }
+        return lic;
+      })
+    );
+
+    if (targetInstId) {
+      setPlatformInstitutes(prev =>
+        prev.map(i => {
+          if (i.id === targetInstId) {
+            return {
+              ...i,
+              subscription: {
+                ...i.subscription,
+                licenceStatus: 'suspended',
+              },
+            };
+          }
+          return i;
+        })
+      );
+      recordPlatformAudit('REVOKE_LICENSE', targetInstId, { licenseId }, reason);
+    }
+  };
+
   const resetToDemoDefaults = () => {
     localStorage.removeItem(`${STORAGE_PREFIX}students`);
     localStorage.removeItem(`${STORAGE_PREFIX}batches`);
@@ -1837,6 +2098,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addAnnouncement,
         updateCommercialSubscription,
         logAuditEvent,
+        // Phase 15: Super Admin Platform
+        platformInstitutes,
+        softwareLicenses,
+        platformAuditLogs,
+        createPlatformInstitute,
+        updateInstituteStatus,
+        updateInstituteCommercialPlan,
+        issueSoftwareLicense,
+        revokeSoftwareLicense,
+        recordPlatformAudit,
+
         updateInstituteConfig,
         resetToDemoDefaults,
       }}

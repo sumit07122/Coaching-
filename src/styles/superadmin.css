@@ -1,0 +1,357 @@
+/* ==============================================================================
+   FIXIA CoachingOS — Phase 15: Platform Super Admin Stylesheet
+   Theme: Enterprise SaaS Platform Governance (Navy / Steel / Indigo)
+   ============================================================================== */
+
+:root {
+  --sa-bg: #f8fafc;
+  --sa-header-bg: #090d16;
+  --sa-sidebar-bg: #0d1527;
+  --sa-border: #e2e8f0;
+  --sa-border-dark: #1e293b;
+  --sa-primary: #4f46e5;
+  --sa-primary-light: #eef2ff;
+  --sa-accent: #0284c7;
+  --sa-accent-light: #e0f2fe;
+  --sa-success: #10b981;
+  --sa-success-light: #ecfdf5;
+  --sa-warning: #f59e0b;
+  --sa-warning-light: #fffbeb;
+  --sa-danger: #ef4444;
+  --sa-danger-light: #fef2f2;
+}
+
+.sa-container {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--sa-bg);
+  color: #1e293b;
+  font-family: inherit;
+}
+
+/* Sidebar */
+.sa-sidebar {
+  width: 260px;
+  background-color: var(--sa-sidebar-bg);
+  color: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--sa-border-dark);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 50;
+  transition: transform 0.2s ease-in-out;
+}
+
+.sa-sidebar-brand {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sa-brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #4f46e5 0%, #0284c7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 18px;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+}
+
+.sa-brand-text h1 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.sa-brand-text span {
+  font-size: 11px;
+  color: #94a3b8;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+}
+
+.sa-nav {
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.sa-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.sa-nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.sa-nav-item.active {
+  background: linear-gradient(90deg, rgba(79, 70, 229, 0.25) 0%, rgba(2, 132, 199, 0.15) 100%);
+  color: #38bdf8;
+  font-weight: 600;
+  border-left: 3px solid #38bdf8;
+}
+
+.sa-nav-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+
+/* Main Content Area */
+.sa-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Platform Top Header */
+.sa-header {
+  height: 64px;
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--sa-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.sa-header-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sa-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--sa-success);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.sa-status-text {
+  font-size: 12.5px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.sa-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sa-body {
+  padding: 28px;
+  max-width: 1400px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+/* Stat Cards Grid */
+.sa-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.sa-stat-card {
+  background-color: #ffffff;
+  border: 1px solid var(--sa-border);
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sa-stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sa-stat-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.sa-stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sa-stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+}
+
+.sa-stat-subtext {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Status Badges */
+.sa-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.sa-badge-active {
+  background-color: var(--sa-success-light);
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.sa-badge-trial {
+  background-color: var(--sa-warning-light);
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.sa-badge-suspended {
+  background-color: var(--sa-danger-light);
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.sa-badge-model {
+  background-color: var(--sa-accent-light);
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+/* Responsive Table */
+.sa-table-container {
+  background-color: #ffffff;
+  border: 1px solid var(--sa-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sa-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.sa-table th {
+  background-color: #f8fafc;
+  padding: 12px 16px;
+  font-weight: 600;
+  color: #475569;
+  border-bottom: 1px solid var(--sa-border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sa-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.sa-table tr:hover td {
+  background-color: #f8fafc;
+}
+
+/* Quota progress bar */
+.sa-quota-bar {
+  width: 100px;
+  height: 6px;
+  background-color: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.sa-quota-fill {
+  height: 100%;
+  border-radius: 3px;
+  background-color: #3b82f6;
+}
+
+.sa-quota-fill.warn {
+  background-color: #f59e0b;
+}
+
+.sa-quota-fill.danger {
+  background-color: #ef4444;
+}
+
+/* Mobile responsive rules */
+@media (max-width: 900px) {
+  .sa-sidebar {
+    position: fixed;
+    left: -260px;
+  }
+  .sa-sidebar.open {
+    left: 0;
+  }
+  .sa-body {
+    padding: 16px;
+  }
+  .sa-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .sa-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -259,7 +259,7 @@ export interface InstituteConfig {
   whatsappReminderTemplate: string;
 }
 
-export type UserRole = 'owner' | 'admin' | 'staff' | 'faculty' | 'teacher';
+export type UserRole = 'owner' | 'admin' | 'staff' | 'faculty' | 'teacher' | 'super_admin';
 
 export interface UserProfile {
   id: string;
@@ -478,4 +478,97 @@ export interface StudentBatchTransfer {
   transferredBy?: string;
   createdAt: string;
 }
+
+// ==============================================================================
+// Phase 15: FIXIA Super Admin Platform Governance Types
+// ==============================================================================
+
+export interface PlatformAdmin {
+  userId: string;
+  email: string;
+  fullName: string;
+  role: 'super_admin' | 'support_agent';
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface PlatformInstituteRecord {
+  id: string;
+  name: string;
+  tagline?: string;
+  category: CoachingCategory;
+  categoryLabel: string;
+  city: string;
+  state: string;
+  phone: string;
+  email: string;
+  directorName: string;
+  regNumber: string;
+  academicSession: string;
+  status: 'active' | 'trial' | 'suspended' | 'expired';
+  suspensionReason?: string;
+  createdAt: string;
+  studentCount: number;
+  batchCount: number;
+  facultyCount: number;
+  subscription: CommercialSubscription;
+}
+
+export interface SoftwareLicenseRecord {
+  id: string;
+  licenseKey: string; // e.g. FIXIA-LIC-9842-8812-7741
+  instituteId: string;
+  instituteName: string;
+  modelType: CommercialModelType;
+  licensedVersion: string;
+  status: LicenceStatus;
+  licenseStartDate: string;
+  licenseExpiryDate?: string; // null or undefined for perpetual
+  maxStudents: number;
+  hardwareFingerprint?: string;
+  offlineChecksum: string;
+  maintenanceValidUntil: string;
+  sourceCodeOwnership: false; // Strictly false by legal framework
+  createdAt: string;
+  issuedBy: string;
+}
+
+export type PlatformAuditAction =
+  | 'SUSPEND_INSTITUTE'
+  | 'ACTIVATE_INSTITUTE'
+  | 'UPDATE_QUOTA'
+  | 'MODIFY_SUBSCRIPTION'
+  | 'ISSUE_LICENSE'
+  | 'REVOKE_LICENSE'
+  | 'CREATE_INSTITUTE';
+
+export interface PlatformAuditLog {
+  id: string;
+  action: PlatformAuditAction;
+  targetInstituteId: string;
+  targetInstituteName: string;
+  actorEmail: string;
+  actorId: string;
+  details: Record<string, any>;
+  reason: string;
+  timestamp: string;
+}
+
+export interface CreatePlatformInstituteInput {
+  name: string;
+  category: CoachingCategory;
+  city: string;
+  state: string;
+  directorName: string;
+  directorEmail: string;
+  directorPhone: string;
+  regNumber?: string;
+  planName: string;
+  modelType: CommercialModelType;
+  studentLimit: number;
+  billingCycle?: 'monthly' | 'annual';
+  recurringAmount?: number;
+  status?: 'active' | 'trial';
+}
+
 

@@ -222,3 +222,4 @@ export const TeacherProfile: React.FC = () => {
     </div>
   );
 };
+

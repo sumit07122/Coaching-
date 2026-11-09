@@ -47,6 +47,59 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
       return <Navigate to="/teacher" replace />;
     }
 
+    // Special isolation: Super Admin portal (/superadmin) requires super_admin role
+    if (allowedRoles.includes('super_admin') && rawRole !== 'super_admin') {
+      if (isTeacher) {
+        return <Navigate to="/teacher" replace />;
+      }
+      return (
+        <div
+          style={{
+            maxWidth: '560px',
+            margin: '80px auto',
+            padding: '36px',
+            backgroundColor: '#ffffff',
+            border: '2px solid #e2e8f0',
+            borderRadius: '16px',
+            textAlign: 'center',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              backgroundColor: '#fef2f2',
+              color: '#dc2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 18px auto',
+              border: '2px solid #fecaca',
+            }}
+          >
+            <ShieldAlert size={32} />
+          </div>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>
+            Platform Governance Access Blocked
+          </h2>
+          <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.6, marginBottom: '24px' }}>
+            The <code>/superadmin</code> management portal is strictly isolated for <strong>FIXIA Platform Operations</strong> personnel. Institute owners and academy staff do not have authorization to modify SaaS subscriptions, commercial quotas, or cross-tenant records.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <Button
+              variant="primary"
+              icon={<ArrowLeft size={16} />}
+              onClick={() => (window.location.href = '/')}
+            >
+              Return to Institute Dashboard
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     const normalizedRole = rawRole === 'faculty' ? 'staff' : rawRole;
     const normalizedAllowed: string[] = allowedRoles.map(r => (r === 'faculty' ? 'staff' : r));
 

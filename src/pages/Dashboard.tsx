@@ -12,6 +12,7 @@ import {
   CreditCard,
   ArrowRight,
   TrendingUp,
+  TrendingDown,
   Receipt,
   Eye,
   CheckCircle2,
@@ -44,7 +45,11 @@ export const Dashboard: React.FC = () => {
     students,
     batches,
     attendance,
+    attendanceSessions,
     payments,
+    expenses,
+    batchSchedules,
+    staff,
     auditLogs,
     dashboardStats,
     todayDate,
@@ -66,12 +71,28 @@ export const Dashboard: React.FC = () => {
     );
   }, [students, currentInstId]);
 
+  // Active faculty / teachers count
+  const activeTeachersCount = useMemo(() => {
+    return staff.filter(s => (s.role === 'faculty' || (s.role as any) === 'teacher') && s.status === 'active').length;
+  }, [staff]);
+
   // 2. Scoped Active Batches
   const activeBatches = useMemo(() => {
     return batches.filter(
       b => (b.instituteId === currentInstId || b.institute_id === currentInstId) && b.status === 'active'
     );
   }, [batches, currentInstId]);
+
+  // Current Month Expenses & Net Operating Income
+  const currentMonthKey = todayDate.slice(0, 7); // '2026-11'
+  const monthlyExpenses = useMemo(() => {
+    return expenses
+      .filter(e => !e.isVoided && e.expenseDate.startsWith(currentMonthKey))
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [expenses, currentMonthKey]);
+
+  // Business Rule: Net Operating Income = Actual Collections minus Recorded Expenses
+  const netOperatingIncome = dashboardStats.collectedThisMonth - monthlyExpenses;
 
   // Capacity calculations
   const totalCapacity = useMemo(() => {
@@ -339,14 +360,14 @@ export const Dashboard: React.FC = () => {
         />
 
         <StatCard
-          label="Active Batches"
-          value={dashboardStats.activeBatches}
+          label="Active Batches & Faculty"
+          value={`${dashboardStats.activeBatches} Batches`}
           icon={<GraduationCap size={18} />}
           iconBgColor="#f5f3ff"
           iconColor="#7c3aed"
           footerText={
             <span style={{ color: 'var(--color-text-secondary)' }}>
-              {totalCapacity} total seat capacity
+              {activeTeachersCount} active faculty &bull; {totalCapacity} seats
             </span>
           }
           onClick={() => navigate('/batches')}
@@ -395,7 +416,7 @@ export const Dashboard: React.FC = () => {
         />
 
         <StatCard
-          label="Pending Fee Amount"
+          label="Pending Fee Dues"
           value={`₹${dashboardStats.pendingFees.toLocaleString('en-IN')}`}
           icon={<AlertCircle size={18} />}
           iconBgColor="#fffbeb"
@@ -406,6 +427,34 @@ export const Dashboard: React.FC = () => {
             </span>
           }
           onClick={() => navigate('/fees?filter=pending')}
+        />
+
+        <StatCard
+          label="Monthly Expenses"
+          value={`₹${monthlyExpenses.toLocaleString('en-IN')}`}
+          icon={<TrendingDown size={18} />}
+          iconBgColor="#fef2f2"
+          iconColor="#dc2626"
+          footerText={
+            <span style={{ color: '#b91c1c' }}>
+              Operating overhead & lease
+            </span>
+          }
+          onClick={() => navigate('/expenses')}
+        />
+
+        <StatCard
+          label="Net Operating Income"
+          value={`${netOperatingIncome >= 0 ? '+' : ''}₹${netOperatingIncome.toLocaleString('en-IN')}`}
+          icon={<IndianRupee size={18} />}
+          iconBgColor={netOperatingIncome >= 0 ? '#eff6ff' : '#fef2f2'}
+          iconColor={netOperatingIncome >= 0 ? '#2563eb' : '#dc2626'}
+          footerText={
+            <span style={{ color: netOperatingIncome >= 0 ? '#1e40af' : '#b91c1c', fontWeight: 600 }}>
+              Collections minus expenses
+            </span>
+          }
+          onClick={() => navigate('/expenses')}
         />
       </div>
 

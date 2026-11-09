@@ -252,3 +252,4 @@ export const TeacherClasses: React.FC = () => {
     </div>
   );
 };
+
