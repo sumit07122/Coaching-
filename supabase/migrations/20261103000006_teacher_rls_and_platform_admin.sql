@@ -220,3 +220,4 @@ CREATE POLICY "Commercial subscription update policy: Platform Super Admins only
     ON public.commercial_subscriptions FOR ALL
     USING (public.is_platform_super_admin())
     WITH CHECK (public.is_platform_super_admin());
+

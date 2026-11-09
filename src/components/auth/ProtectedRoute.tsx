@@ -3,10 +3,11 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { ShieldAlert, ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
+import { UserRole } from '../../types';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('owner' | 'admin' | 'staff' | 'faculty')[];
+  allowedRoles?: UserRole[];
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
@@ -39,6 +40,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   // Check role permissions if specified
   if (allowedRoles && allowedRoles.length > 0) {
     const rawRole = (currentUser?.role || 'staff') as string;
+    const isTeacher = rawRole === 'teacher' || rawRole === 'faculty';
+
+    // If teacher attempts to access an owner/admin restricted route, redirect directly to /teacher
+    if (isTeacher && !allowedRoles.includes(rawRole as UserRole) && !allowedRoles.includes('staff')) {
+      return <Navigate to="/teacher" replace />;
+    }
+
     const normalizedRole = rawRole === 'faculty' ? 'staff' : rawRole;
     const normalizedAllowed: string[] = allowedRoles.map(r => (r === 'faculty' ? 'staff' : r));
 
@@ -77,8 +85,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
           <p style={{ fontSize: '13.5px', color: 'var(--color-text-secondary)', lineHeight: 1.5, marginBottom: '24px' }}>
             Your account role (<strong>{(currentUser?.role || 'staff').toUpperCase()}</strong>) does not have authorization to view or manage this administrative section. Only institute owners and administrative coordinators can access this area.
           </p>
-          <Button variant="primary" icon={<ArrowLeft size={16} />} onClick={() => window.history.back()}>
-            Return to Authorized Dashboard
+          <Button
+            variant="primary"
+            icon={<ArrowLeft size={16} />}
+            onClick={() => (isTeacher ? (window.location.href = '/teacher') : window.history.back())}
+          >
+            {isTeacher ? 'Go to Teacher Class Portal' : 'Return to Authorized Dashboard'}
           </Button>
         </div>
       );

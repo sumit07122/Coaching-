@@ -17,6 +17,14 @@ const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Rep
 const Staff = lazy(() => import('./pages/Staff').then(m => ({ default: m.Staff })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 
+// Dedicated Teacher Portal pages
+const TeacherLayout = lazy(() => import('./components/layout/TeacherLayout').then(m => ({ default: m.TeacherLayout })));
+const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard').then(m => ({ default: m.TeacherDashboard })));
+const TeacherClasses = lazy(() => import('./pages/teacher/TeacherClasses').then(m => ({ default: m.TeacherClasses })));
+const TeacherAttendanceTerminal = lazy(() => import('./pages/teacher/TeacherAttendanceTerminal').then(m => ({ default: m.TeacherAttendanceTerminal })));
+const TeacherHistory = lazy(() => import('./pages/teacher/TeacherHistory').then(m => ({ default: m.TeacherHistory })));
+const TeacherProfile = lazy(() => import('./pages/teacher/TeacherProfile').then(m => ({ default: m.TeacherProfile })));
+
 const PageLoader: React.FC = () => (
   <div className="page-loading-container" role="status" aria-label="Loading page">
     <div className="loading-spinner" />
@@ -32,10 +40,12 @@ export const App: React.FC = () => {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/login" element={<Login />} />
+
+              {/* Owner & Administrator Portal Routes */}
               <Route
                 path="/"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['owner', 'admin']}>
                     <AppLayout />
                   </ProtectedRoute>
                 }
@@ -45,23 +55,9 @@ export const App: React.FC = () => {
                 <Route path="students/:id" element={<StudentProfile />} />
                 <Route path="batches" element={<Batches />} />
                 <Route path="attendance" element={<Attendance />} />
-                <Route
-                  path="fees"
-                  element={
-                    <ProtectedRoute allowedRoles={['owner', 'admin']}>
-                      <Fees />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="fees" element={<Fees />} />
                 <Route path="reports" element={<Reports />} />
-                <Route
-                  path="staff"
-                  element={
-                    <ProtectedRoute allowedRoles={['owner', 'admin']}>
-                      <Staff />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="staff" element={<Staff />} />
                 <Route
                   path="settings"
                   element={
@@ -70,8 +66,26 @@ export const App: React.FC = () => {
                     </ProtectedRoute>
                   }
                 />
-                <Route path="*" element={<Navigate to="/" replace />} />
               </Route>
+
+              {/* Dedicated Teacher Attendance & Class Portal Routes */}
+              <Route
+                path="/teacher"
+                element={
+                  <ProtectedRoute>
+                    <TeacherLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<TeacherDashboard />} />
+                <Route path="classes" element={<TeacherClasses />} />
+                <Route path="attendance/:batchId" element={<TeacherAttendanceTerminal />} />
+                <Route path="history" element={<TeacherHistory />} />
+                <Route path="profile" element={<TeacherProfile />} />
+              </Route>
+
+              {/* Wildcard fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </AppProvider>

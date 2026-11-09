@@ -63,7 +63,10 @@ export const Login: React.FC = () => {
 
   const handleEnterDemo = () => {
     loginAsDemoUser(selectedDemoUserId);
-    navigate(from, { replace: true });
+    const targetUser = demoUsers.find(u => u.id === selectedDemoUserId);
+    const isTeacher = targetUser?.role === 'faculty' || targetUser?.role === 'teacher';
+    const dest = isTeacher ? (from.startsWith('/teacher') ? from : '/teacher') : from;
+    navigate(dest, { replace: true });
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -71,7 +74,16 @@ export const Login: React.FC = () => {
     if (!emailInput.trim()) return;
     const ok = await loginWithEmail(emailInput.trim(), passwordInput);
     if (ok) {
-      navigate(from, { replace: true });
+      const savedUser = localStorage.getItem('fixia_auth_user_v2');
+      let isTeacher = false;
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          isTeacher = parsed.role === 'faculty' || parsed.role === 'teacher';
+        } catch {}
+      }
+      const dest = isTeacher ? (from.startsWith('/teacher') ? from : '/teacher') : from;
+      navigate(dest, { replace: true });
     }
   };
 

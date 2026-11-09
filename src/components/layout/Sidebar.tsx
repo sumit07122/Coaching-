@@ -129,6 +129,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <Settings size={18} />
             <span>Institute Settings</span>
           </NavLink>
+
+          <span className="nav-section-title" style={{ marginTop: '12px' }}>
+            Portals & Access
+          </span>
+
+          <NavLink
+            to="/teacher"
+            className="nav-item"
+            onClick={onClose}
+            style={{
+              backgroundColor: '#eff6ff',
+              color: '#2563eb',
+              fontWeight: 600,
+            }}
+          >
+            <GraduationCap size={18} />
+            <span>Teacher Portal View</span>
+          </NavLink>
         </nav>
 
         <div className="sidebar-footer">

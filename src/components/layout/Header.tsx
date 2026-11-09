@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, Plus, Calendar, IndianRupee, Bell, Check, ExternalLink, X } from 'lucide-react';
+import { Menu, Plus, Calendar, IndianRupee, Bell, Check, ExternalLink, X, GraduationCap } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
@@ -208,6 +208,16 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             </div>
           )}
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          icon={<GraduationCap size={14} />}
+          onClick={() => navigate('/teacher')}
+          title="Switch to Teacher Class Portal"
+        >
+          Teacher Portal
+        </Button>
 
         {canManageFinances && (
           <Button
