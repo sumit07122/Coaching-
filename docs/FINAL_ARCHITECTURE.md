@@ -261,3 +261,4 @@ The frontend communicates with Supabase through `src/services/supabaseData.ts`:
 - **Transactional Roll-Call:** `dbSaveAttendanceSession` updates the session header and upserts individual student marks atomically.
 - **Ledger Security:** `dbRecordPayment` and `dbReversePayment` enforce balance integrity ($$\text{Balance} = \text{Invoiced} - \text{Paid}$$).
 - **Service-Role Key Detector:** A client-side guard automatically inspects JWT keys and halts app boot if a `service_role` key is accidentally supplied in public environment variables.
+

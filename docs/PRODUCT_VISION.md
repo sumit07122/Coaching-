@@ -142,3 +142,4 @@ The user interface follows a **commercial, clean, and distraction-free design sy
   - Desktop: Fixed left navigation sidebar with responsive collapsible states.
   - Mobile: Clean sticky top bar with bottom-sheet modals and touch-friendly data tables.
 - **Zero Framework Bloat:** Implemented strictly in pure standard CSS with CSS variables — no Tailwind CSS or heavy utility runtimes.
+

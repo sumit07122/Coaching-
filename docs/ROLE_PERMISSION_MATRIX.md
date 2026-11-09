@@ -145,3 +145,4 @@ Visible to users with `role = 'teacher'`, `role = 'faculty'`, or `role = 'staff'
 2. **Payment Reversal Immutability:** Only institute owners can reverse a payment. Reversals never delete the original payment row; they set `status = 'reversed'`, capture `reversal_reason`, record `reversed_by_user_id`, and log an immutable entry in `audit_logs`.
 3. **Student Quota Barrier:** Even if an institute owner attempts to batch-import students, PostgreSQL trigger `trg_check_student_quota` halts execution if `active_student_count >= student_limit`.
 4. **Attendance Modification Window:** Teachers can edit attendance sessions for up to 24 hours after creation. Edits after 24 hours require Owner or Admin approval.
+

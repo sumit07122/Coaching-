@@ -162,3 +162,4 @@ Tuition classrooms often suffer from weak cellular reception in basements or hig
 - When tapping **Submit**:
   - If online: Syncs to Supabase immediately.
   - If offline: Queues session in `IndexedDB` / `localStorage` with a visual indicator ("Pending Sync - 1 Session Queued"). Automatically flushes to Supabase upon reconnection.
+
