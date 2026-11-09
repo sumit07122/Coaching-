@@ -56,6 +56,7 @@ describe('Production Readiness Audit — 1. Security & Isolation', () => {
       admin: { canManageFinances: true, canReversePayments: false, canManageSettings: false },
       staff: { canManageFinances: false, canReversePayments: false, canManageSettings: false },
       faculty: { canManageFinances: false, canReversePayments: false, canManageSettings: false },
+      teacher: { canManageFinances: false, canReversePayments: false, canManageSettings: false },
     };
 
     // Owner can do everything
@@ -68,10 +69,14 @@ describe('Production Readiness Audit — 1. Security & Isolation', () => {
     expect(roles.admin.canReversePayments).toBe(false);
     expect(roles.admin.canManageSettings).toBe(false);
 
-    // Staff cannot access finances, reversals, or settings
+    // Staff and Teachers cannot access finances, reversals, or settings
     expect(roles.staff.canManageFinances).toBe(false);
     expect(roles.staff.canReversePayments).toBe(false);
     expect(roles.staff.canManageSettings).toBe(false);
+
+    expect(roles.teacher.canManageFinances).toBe(false);
+    expect(roles.teacher.canReversePayments).toBe(false);
+    expect(roles.teacher.canManageSettings).toBe(false);
   });
 
   it('enforces database check constraint: source code ownership is always false', () => {

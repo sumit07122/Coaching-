@@ -311,3 +311,4 @@ CREATE POLICY "Commercial subscription update policy: Platform Super Admins only
    - Test Teacher A attempting to mark attendance in Batch B (Expect RLS violation exception).
    - Test Teacher A attempting to query `payments` or `expenses` (Expect 0 rows).
    - Test Institute Owner attempting to mutate `commercial_subscriptions.student_limit` (Expect permission denied).
+

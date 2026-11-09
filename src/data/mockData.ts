@@ -1,4 +1,17 @@
-import { Student, Batch, PaymentTransaction, DailyAttendanceRecord, AttendanceSession, FeePlan, InstituteConfig, UserProfile, InAppNotification } from '../types';
+import {
+  Student,
+  Batch,
+  PaymentTransaction,
+  DailyAttendanceRecord,
+  AttendanceSession,
+  FeePlan,
+  InstituteConfig,
+  UserProfile,
+  InAppNotification,
+  Expense,
+  BatchSchedule,
+  StudentBatchTransfer,
+} from '../types';
 
 export const INITIAL_INSTITUTE_CONFIG: InstituteConfig = {
   name: 'Radha Krishna Academy',
@@ -890,3 +903,134 @@ export const INITIAL_PAYMENT_TRANSACTIONS: PaymentTransaction[] = [
     balanceRemaining: 0,
   },
 ];
+
+// Initial institute expenses for Mathura premier institute (rent, electricity, salaries, marketing, etc.)
+export const INITIAL_EXPENSES: Expense[] = [
+  {
+    id: 'EXP-2026-001',
+    instituteId: 'INST-MTH-01',
+    category: 'rent',
+    amount: 22000,
+    expenseDate: '2026-11-01',
+    title: 'Krishna Commercial Complex 2nd Floor Monthly Lease',
+    recipient: 'Shri Radhey Real Estate Holdings',
+    paymentMode: 'bank_transfer',
+    referenceNumber: 'NEFT-SBIN2026110192',
+    notes: 'Covering 1800 sq ft coaching floor area for November 2026.',
+    isVoided: false,
+    createdAt: '2026-11-01T10:00:00Z',
+    updatedAt: '2026-11-01T10:00:00Z',
+  },
+  {
+    id: 'EXP-2026-002',
+    instituteId: 'INST-MTH-01',
+    category: 'utilities',
+    amount: 4800,
+    expenseDate: '2026-11-02',
+    title: 'UPPCL Electricity Bill - Classroom AC & Inverter',
+    recipient: 'Uttar Pradesh Power Corporation Limited',
+    paymentMode: 'upi',
+    referenceNumber: 'UPI-UPPCL-8921829',
+    notes: 'Electricity bill for October consumption.',
+    isVoided: false,
+    createdAt: '2026-11-02T11:30:00Z',
+    updatedAt: '2026-11-02T11:30:00Z',
+  },
+  {
+    id: 'EXP-2026-003',
+    instituteId: 'INST-MTH-01',
+    category: 'stationery',
+    amount: 3200,
+    expenseDate: '2026-11-03',
+    title: 'Class 10th & JEE Foundation Practice Test Papers Printing',
+    recipient: 'Brijwasi Graphics & Offset Printers',
+    paymentMode: 'cash',
+    referenceNumber: 'BILL-BG-4421',
+    notes: '200 booklets of DPPs and weekly mock exam answer sheets.',
+    isVoided: false,
+    createdAt: '2026-11-03T15:00:00Z',
+    updatedAt: '2026-11-03T15:00:00Z',
+  },
+];
+
+// Initial batch weekly schedules with room allocations
+export const INITIAL_BATCH_SCHEDULES: BatchSchedule[] = [
+  {
+    id: 'SCH-101-MON',
+    instituteId: 'INST-MTH-01',
+    batchId: 'BAT-101',
+    dayOfWeek: 1, // Monday
+    startTime: '16:30:00',
+    endTime: '18:00:00',
+    roomNumber: 'Room 101',
+    isActive: true,
+  },
+  {
+    id: 'SCH-101-WED',
+    instituteId: 'INST-MTH-01',
+    batchId: 'BAT-101',
+    dayOfWeek: 3, // Wednesday
+    startTime: '16:30:00',
+    endTime: '18:00:00',
+    roomNumber: 'Room 101',
+    isActive: true,
+  },
+  {
+    id: 'SCH-101-FRI',
+    instituteId: 'INST-MTH-01',
+    batchId: 'BAT-101',
+    dayOfWeek: 5, // Friday
+    startTime: '16:30:00',
+    endTime: '18:00:00',
+    roomNumber: 'Room 101',
+    isActive: true,
+  },
+  {
+    id: 'SCH-102-TUE',
+    instituteId: 'INST-MTH-01',
+    batchId: 'BAT-102',
+    dayOfWeek: 2, // Tuesday
+    startTime: '17:00:00',
+    endTime: '19:00:00',
+    roomNumber: 'Room 102',
+    isActive: true,
+  },
+  {
+    id: 'SCH-102-THU',
+    instituteId: 'INST-MTH-01',
+    batchId: 'BAT-102',
+    dayOfWeek: 4, // Thursday
+    startTime: '17:00:00',
+    endTime: '19:00:00',
+    roomNumber: 'Room 102',
+    isActive: true,
+  },
+  {
+    id: 'SCH-102-SAT',
+    instituteId: 'INST-MTH-01',
+    batchId: 'BAT-102',
+    dayOfWeek: 6, // Saturday
+    startTime: '17:00:00',
+    endTime: '19:00:00',
+    roomNumber: 'Room 102',
+    isActive: true,
+  },
+];
+
+// Initial historical student batch transfers
+export const INITIAL_BATCH_TRANSFERS: StudentBatchTransfer[] = [
+  {
+    id: 'XFR-2026-001',
+    instituteId: 'INST-MTH-01',
+    studentId: 'STU-017',
+    studentName: 'Aryan Mathur',
+    fromBatchId: 'BAT-101',
+    fromBatchName: 'Class 10th CBSE - Maths & Science',
+    toBatchId: 'BAT-102',
+    toBatchName: 'Class 11th - JEE Foundation Physics',
+    transferDate: '2026-07-01',
+    reason: 'Promoted to Class 11th JEE Foundation after 10th CBSE board results.',
+    createdAt: '2026-07-01T09:00:00Z',
+  },
+];
+

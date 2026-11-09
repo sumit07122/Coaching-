@@ -22,6 +22,11 @@ import {
   AuditLog,
   InAppNotification,
   CommercialSubscription,
+  Expense,
+  CreateExpenseInput,
+  BatchSchedule,
+  CreateBatchScheduleInput,
+  StudentBatchTransfer,
 } from '../types';
 import {
   INITIAL_INSTITUTE_CONFIG,
@@ -32,6 +37,9 @@ import {
   INITIAL_AUDIT_LOGS,
   INITIAL_NOTIFICATIONS,
   INITIAL_COMMERCIAL_SUBSCRIPTION,
+  INITIAL_EXPENSES,
+  INITIAL_BATCH_SCHEDULES,
+  INITIAL_BATCH_TRANSFERS,
   generateInitialStudents,
   generateInitialAttendance,
   generateInitialAttendanceSessions,
@@ -52,6 +60,11 @@ import {
   dbCreateFeePlan,
   dbLogAuditEvent,
   dbUpdateCommercialSubscription,
+  dbCreateExpense,
+  dbVoidExpense,
+  dbCreateBatchSchedule,
+  dbDeleteBatchSchedule,
+  dbTransferStudentBatch,
 } from '../services/supabaseData';
 
 export interface RecordPaymentInput {
@@ -90,6 +103,9 @@ interface AppContextType {
   auditLogs: AuditLog[];
   notifications: InAppNotification[];
   commercialSubscription: CommercialSubscription;
+  expenses: Expense[];
+  batchSchedules: BatchSchedule[];
+  batchTransfers: StudentBatchTransfer[];
   hasModuleAccess: (moduleKey: string) => boolean;
   instituteConfig: InstituteConfig;
   dashboardStats: DashboardStats;
@@ -139,6 +155,11 @@ interface AppContextType {
   assignFeePlan: (input: AssignFeePlanInput) => Student;
   recordPayment: (input: RecordPaymentInput) => PaymentTransaction;
   reversePayment: (paymentId: string, reason: string) => void;
+  addExpense: (input: CreateExpenseInput) => Expense;
+  voidExpense: (expenseId: string, reason: string) => void;
+  addBatchSchedule: (input: CreateBatchScheduleInput) => BatchSchedule;
+  deleteBatchSchedule: (scheduleId: string) => void;
+  transferStudentBatch: (studentId: string, newBatchId: string, reason?: string) => void;
   markNotificationRead: (id: string) => void;
   clearAllNotifications: () => void;
   deleteNotification: (id: string) => void;
@@ -240,6 +261,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_COMMERCIAL_SUBSCRIPTION;
   });
 
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}expenses`);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return INITIAL_EXPENSES;
+  });
+
+  const [batchSchedules, setBatchSchedules] = useState<BatchSchedule[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}schedules`);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return INITIAL_BATCH_SCHEDULES;
+  });
+
+  const [batchTransfers, setBatchTransfers] = useState<StudentBatchTransfer[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}transfers`);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return INITIAL_BATCH_TRANSFERS;
+  });
+
   const [instituteConfig, setInstituteConfig] = useState<InstituteConfig>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}config`);
     if (saved) {
@@ -299,6 +344,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [commercialSubscription]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}expenses`, JSON.stringify(expenses));
+  }, [expenses]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}schedules`, JSON.stringify(batchSchedules));
+  }, [batchSchedules]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}transfers`, JSON.stringify(batchTransfers));
+  }, [batchTransfers]);
+
+  useEffect(() => {
     localStorage.setItem(`${STORAGE_PREFIX}config`, JSON.stringify(instituteConfig));
   }, [instituteConfig]);
 
@@ -317,6 +374,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.staff && data.staff.length > 0) setStaff(data.staff);
           if (data.auditLogs && data.auditLogs.length > 0) setAuditLogs(data.auditLogs);
           if (data.commercialSubscription) setCommercialSubscription(data.commercialSubscription);
+          if (data.expenses && data.expenses.length > 0) setExpenses(data.expenses);
+          if (data.batchSchedules && data.batchSchedules.length > 0) setBatchSchedules(data.batchSchedules);
+          if (data.batchTransfers && data.batchTransfers.length > 0) setBatchTransfers(data.batchTransfers);
         })
         .catch(err => {
           console.error('Failed to load institute records from Supabase:', err);
@@ -1452,6 +1512,224 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('UPDATE_SETTINGS', 'institute', 'INST-MTH-01', updates);
   };
 
+  const addExpense = (input: CreateExpenseInput): Expense => {
+    if (!['owner', 'admin'].includes(currentUser.role)) {
+      throw new Error('Unauthorized: Only administrators and owners can record institute expenses.');
+    }
+    if (!input.title?.trim()) {
+      throw new Error('Expense title is required.');
+    }
+    if (input.amount <= 0) {
+      throw new Error('Expense amount must be greater than zero.');
+    }
+
+    const instId = currentUser.instituteId || 'INST-MTH-01';
+    const newExpense: Expense = {
+      id: `EXP-${Date.now().toString().slice(-4)}`,
+      instituteId: instId,
+      institute_id: instId,
+      category: input.category,
+      amount: input.amount,
+      expenseDate: input.expenseDate || todayDate,
+      title: input.title.trim(),
+      recipient: input.recipient?.trim(),
+      paymentMode: input.paymentMode,
+      referenceNumber: input.referenceNumber?.trim(),
+      notes: input.notes?.trim(),
+      receiptVoucherUrl: input.receiptVoucherUrl,
+      createdBy: currentUser.id,
+      isVoided: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setExpenses(prev => [newExpense, ...prev]);
+    logAuditEvent('RECORD_EXPENSE', 'institute', newExpense.id, {
+      title: newExpense.title,
+      amount: newExpense.amount,
+      category: newExpense.category,
+    });
+
+    if (isSupabaseConfigured) {
+      dbCreateExpense(instId, newExpense, currentUser.id).catch(err =>
+        console.error('Supabase create expense error:', err)
+      );
+    }
+
+    return newExpense;
+  };
+
+  const voidExpense = (expenseId: string, reason: string) => {
+    if (!['owner', 'admin'].includes(currentUser.role)) {
+      throw new Error('Unauthorized: Only administrators and owners can void expenses.');
+    }
+    if (!reason?.trim()) {
+      throw new Error('A void reason must be provided for audit tracking.');
+    }
+
+    const instId = currentUser.instituteId || 'INST-MTH-01';
+    setExpenses(prev =>
+      prev.map(exp =>
+        exp.id === expenseId
+          ? {
+              ...exp,
+              isVoided: true,
+              voidReason: reason.trim(),
+              voidedAt: new Date().toISOString(),
+              voidedBy: currentUser.id,
+            }
+          : exp
+      )
+    );
+
+    logAuditEvent('VOID_EXPENSE', 'institute', expenseId, { reason });
+
+    if (isSupabaseConfigured) {
+      dbVoidExpense(instId, expenseId, reason, currentUser.id).catch(err =>
+        console.error('Supabase void expense error:', err)
+      );
+    }
+  };
+
+  const addBatchSchedule = (input: CreateBatchScheduleInput): BatchSchedule => {
+    if (!['owner', 'admin'].includes(currentUser.role)) {
+      throw new Error('Unauthorized: Only administrators and owners can configure batch schedules.');
+    }
+    if (input.endTime <= input.startTime) {
+      throw new Error('Schedule end time must be after start time.');
+    }
+
+    const instId = currentUser.instituteId || 'INST-MTH-01';
+
+    // Room collision check
+    if (input.roomNumber && input.roomNumber.trim()) {
+      const room = input.roomNumber.trim().toLowerCase();
+      const conflict = batchSchedules.find(
+        s =>
+          s.isActive &&
+          s.dayOfWeek === input.dayOfWeek &&
+          s.roomNumber &&
+          s.roomNumber.trim().toLowerCase() === room &&
+          ((input.startTime >= s.startTime && input.startTime < s.endTime) ||
+            (input.endTime > s.startTime && input.endTime <= s.endTime) ||
+            (input.startTime <= s.startTime && input.endTime >= s.endTime))
+      );
+
+      if (conflict) {
+        throw new Error(
+          `Schedule Conflict: Room "${input.roomNumber}" is already booked on this day between ${conflict.startTime} and ${conflict.endTime}.`
+        );
+      }
+    }
+
+    const newSchedule: BatchSchedule = {
+      id: `SCH-${Date.now().toString().slice(-4)}`,
+      instituteId: instId,
+      institute_id: instId,
+      batchId: input.batchId,
+      dayOfWeek: input.dayOfWeek,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      roomNumber: input.roomNumber?.trim(),
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setBatchSchedules(prev => [...prev, newSchedule]);
+    logAuditEvent('CREATE_BATCH_SCHEDULE', 'batch', newSchedule.id, {
+      batchId: newSchedule.batchId,
+      dayOfWeek: newSchedule.dayOfWeek,
+      roomNumber: newSchedule.roomNumber,
+    });
+
+    if (isSupabaseConfigured) {
+      dbCreateBatchSchedule(instId, newSchedule).catch(err =>
+        console.error('Supabase create schedule error:', err)
+      );
+    }
+
+    return newSchedule;
+  };
+
+  const deleteBatchSchedule = (scheduleId: string) => {
+    if (!['owner', 'admin'].includes(currentUser.role)) {
+      throw new Error('Unauthorized: Only administrators and owners can remove batch schedules.');
+    }
+    const instId = currentUser.instituteId || 'INST-MTH-01';
+    setBatchSchedules(prev => prev.filter(s => s.id !== scheduleId));
+    logAuditEvent('DELETE_BATCH_SCHEDULE', 'batch', scheduleId);
+
+    if (isSupabaseConfigured) {
+      dbDeleteBatchSchedule(instId, scheduleId).catch(err =>
+        console.error('Supabase delete schedule error:', err)
+      );
+    }
+  };
+
+  const transferStudentBatch = (studentId: string, newBatchId: string, reason?: string) => {
+    if (!['owner', 'admin'].includes(currentUser.role)) {
+      throw new Error('Unauthorized: Only administrators and owners can transfer students between batches.');
+    }
+
+    const student = students.find(s => s.id === studentId);
+    if (!student) throw new Error('Student not found.');
+
+    const newBatch = batches.find(b => b.id === newBatchId);
+    if (!newBatch) throw new Error('Target batch not found.');
+
+    if (student.batchId === newBatchId) return;
+
+    const oldBatchId = student.batchId;
+    const oldBatchName = student.batchName;
+    const instId = currentUser.instituteId || 'INST-MTH-01';
+
+    // Update student's batch assignment
+    setStudents(prev =>
+      prev.map(s =>
+        s.id === studentId
+          ? {
+              ...s,
+              batchId: newBatchId,
+              batchName: newBatch.name,
+              course: newBatch.course,
+            }
+          : s
+      )
+    );
+
+    // Record historical transfer log
+    const transferRecord: StudentBatchTransfer = {
+      id: `XFR-${Date.now().toString().slice(-4)}`,
+      instituteId: instId,
+      institute_id: instId,
+      studentId,
+      studentName: student.fullName,
+      fromBatchId: oldBatchId,
+      fromBatchName: oldBatchName,
+      toBatchId: newBatchId,
+      toBatchName: newBatch.name,
+      transferDate: todayDate,
+      reason: reason || 'Batch transfer requested by administrator',
+      transferredBy: currentUser.id,
+      createdAt: new Date().toISOString(),
+    };
+
+    setBatchTransfers(prev => [transferRecord, ...prev]);
+
+    logAuditEvent('TRANSFER_STUDENT_BATCH', 'student', studentId, {
+      fromBatchId: oldBatchId,
+      toBatchId: newBatchId,
+      reason,
+    });
+
+    if (isSupabaseConfigured) {
+      dbTransferStudentBatch(instId, studentId, newBatchId, reason).catch(err =>
+        console.error('Supabase transfer student batch error:', err)
+      );
+    }
+  };
+
   const resetToDemoDefaults = () => {
     localStorage.removeItem(`${STORAGE_PREFIX}students`);
     localStorage.removeItem(`${STORAGE_PREFIX}batches`);
@@ -1464,6 +1742,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem(`${STORAGE_PREFIX}notifications`);
     localStorage.removeItem(`${STORAGE_PREFIX}commercial`);
     localStorage.removeItem(`${STORAGE_PREFIX}config`);
+    localStorage.removeItem(`${STORAGE_PREFIX}expenses`);
+    localStorage.removeItem(`${STORAGE_PREFIX}schedules`);
+    localStorage.removeItem(`${STORAGE_PREFIX}transfers`);
 
     const freshStudents = generateInitialStudents();
     const freshAttendance = generateInitialAttendance(freshStudents, todayDate);
@@ -1477,6 +1758,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuditLogs(INITIAL_AUDIT_LOGS);
     setNotifications(INITIAL_NOTIFICATIONS);
     setCommercialSubscription(INITIAL_COMMERCIAL_SUBSCRIPTION);
+    setExpenses(INITIAL_EXPENSES);
+    setBatchSchedules(INITIAL_BATCH_SCHEDULES);
+    setBatchTransfers(INITIAL_BATCH_TRANSFERS);
     setInstituteConfig(INITIAL_INSTITUTE_CONFIG);
     setPreviewReceipt(null);
   };
@@ -1494,6 +1778,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         auditLogs,
         notifications,
         commercialSubscription,
+        expenses,
+        batchSchedules,
+        batchTransfers,
         hasModuleAccess,
         instituteConfig,
         dashboardStats,
@@ -1539,6 +1826,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         assignFeePlan,
         recordPayment,
         reversePayment,
+        addExpense,
+        voidExpense,
+        addBatchSchedule,
+        deleteBatchSchedule,
+        transferStudentBatch,
         markNotificationRead,
         clearAllNotifications,
         deleteNotification,

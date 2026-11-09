@@ -660,3 +660,651 @@ BEGIN
 END;
 $$;
 
+-- ==============================================================================
+-- FIXIA CoachingOS — Migration 006: Teacher Assignment RLS & Platform Admin
+-- ==============================================================================
+
+-- 1. Create Platform Admins Table (Platform-Level Super Admins)
+-- Isolated from tenant tables; governs licenses, subscriptions, and platform health.
+CREATE TABLE IF NOT EXISTS public.platform_admins (
+    user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    full_name VARCHAR(255) NOT NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'super_admin' CHECK (role IN ('super_admin', 'support_agent')),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.platform_admins ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Platform admins can view admin list"
+    ON public.platform_admins FOR SELECT
+    USING (user_id = auth.uid() OR EXISTS (
+        SELECT 1 FROM public.platform_admins pa WHERE pa.user_id = auth.uid() AND pa.is_active = TRUE
+    ));
+
+-- 2. Helper Function: Verify if caller is a Platform Super Admin
+CREATE OR REPLACE FUNCTION public.is_platform_super_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.platform_admins
+        WHERE user_id = auth.uid()
+          AND is_active = TRUE
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+-- 3. Extend Memberships Role Constraint to natively include 'teacher' and 'faculty'
+ALTER TABLE public.memberships
+    DROP CONSTRAINT IF EXISTS memberships_role_check;
+
+ALTER TABLE public.memberships
+    ADD CONSTRAINT memberships_role_check
+    CHECK (role IN ('owner', 'admin', 'staff', 'teacher', 'faculty'));
+
+-- 4. Helper Function: Check whether a user/caller is authorized to access or manage a specific batch
+CREATE OR REPLACE FUNCTION public.is_teacher_assigned_to_batch(p_institute_id UUID, p_batch_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_role VARCHAR;
+    v_is_assigned BOOLEAN;
+BEGIN
+    -- Platform Super Admins have universal diagnostic read
+    IF public.is_platform_super_admin() THEN
+        RETURN TRUE;
+    END IF;
+
+    -- Institute Owners & Admins have global batch authority within their institute
+    v_role := public.get_user_role(p_institute_id);
+    IF v_role IN ('owner', 'admin') THEN
+        RETURN TRUE;
+    END IF;
+
+    -- Verify active membership in the institute
+    IF NOT public.user_belongs_to_institute(p_institute_id) THEN
+        RETURN FALSE;
+    END IF;
+
+    -- Check direct instructor_user_id assignment OR inclusion in membership assigned_batches JSONB array
+    SELECT (
+        instructor_user_id = auth.uid()
+        OR EXISTS (
+            SELECT 1 FROM public.memberships m
+            WHERE m.institute_id = p_institute_id
+              AND m.user_id = auth.uid()
+              AND m.is_active = TRUE
+              AND m.assigned_batches ? p_batch_id::text
+        )
+    ) INTO v_is_assigned
+    FROM public.batches
+    WHERE id = p_batch_id AND institute_id = p_institute_id;
+
+    RETURN COALESCE(v_is_assigned, FALSE);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+-- 5. Batch-to-Teacher Synchronization Trigger
+-- Automatically reflects instructor_user_id updates into memberships.assigned_batches
+CREATE OR REPLACE FUNCTION public.sync_batch_instructor_membership()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.instructor_user_id IS NOT NULL THEN
+        UPDATE public.memberships
+        SET assigned_batches = (
+            SELECT jsonb_agg(DISTINCT elem)
+            FROM (
+                SELECT jsonb_array_elements_text(COALESCE(assigned_batches, '[]'::jsonb)) AS elem
+                UNION
+                SELECT NEW.id::text
+            ) s
+        )
+        WHERE institute_id = NEW.institute_id
+          AND user_id = NEW.instructor_user_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_sync_batch_instructor ON public.batches;
+CREATE TRIGGER trg_sync_batch_instructor
+    AFTER INSERT OR UPDATE OF instructor_user_id ON public.batches
+    FOR EACH ROW EXECUTE FUNCTION public.sync_batch_instructor_membership();
+
+-- 6. Tightened RLS on Batches: Teachers can ONLY SELECT assigned batches
+DROP POLICY IF EXISTS "Institute members can view batches" ON public.batches;
+DROP POLICY IF EXISTS "Batches select policy: Owners/Admins view all; Teachers view assigned only" ON public.batches;
+
+CREATE POLICY "Batches select policy: Owners/Admins view all; Teachers view assigned only"
+    ON public.batches FOR SELECT
+    USING (
+        public.is_platform_super_admin()
+        OR public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR instructor_user_id = auth.uid()
+        OR EXISTS (
+            SELECT 1 FROM public.memberships m
+            WHERE m.institute_id = batches.institute_id
+              AND m.user_id = auth.uid()
+              AND m.is_active = TRUE
+              AND m.assigned_batches ? batches.id::text
+        )
+    );
+
+-- 7. Tightened RLS on Attendance Sessions: Teachers can ONLY manage assigned batches
+DROP POLICY IF EXISTS "Authorized staff can insert/update attendance sessions" ON public.attendance_sessions;
+DROP POLICY IF EXISTS "Institute members can view attendance sessions" ON public.attendance_sessions;
+DROP POLICY IF EXISTS "Attendance sessions select policy: Owners/Admins view all; Teachers view assigned only" ON public.attendance_sessions;
+DROP POLICY IF EXISTS "Attendance sessions write policy: Authorized teachers and admins only" ON public.attendance_sessions;
+
+CREATE POLICY "Attendance sessions select policy: Owners/Admins view all; Teachers view assigned only"
+    ON public.attendance_sessions FOR SELECT
+    USING (
+        public.is_platform_super_admin()
+        OR public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR public.is_teacher_assigned_to_batch(institute_id, batch_id)
+    );
+
+CREATE POLICY "Attendance sessions write policy: Authorized teachers and admins only"
+    ON public.attendance_sessions FOR ALL
+    USING (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR public.is_teacher_assigned_to_batch(institute_id, batch_id)
+    )
+    WITH CHECK (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR public.is_teacher_assigned_to_batch(institute_id, batch_id)
+    );
+
+-- 8. Tightened RLS on Attendance Records: Teachers can ONLY mark records for assigned sessions
+DROP POLICY IF EXISTS "Authorized staff can mark attendance records" ON public.attendance_records;
+DROP POLICY IF EXISTS "Institute members can view attendance records" ON public.attendance_records;
+DROP POLICY IF EXISTS "Attendance records select policy: Owners/Admins view all; Teachers view assigned only" ON public.attendance_records;
+DROP POLICY IF EXISTS "Attendance records write policy: Assigned teachers and admins only" ON public.attendance_records;
+
+CREATE POLICY "Attendance records select policy: Owners/Admins view all; Teachers view assigned only"
+    ON public.attendance_records FOR SELECT
+    USING (
+        public.is_platform_super_admin()
+        OR public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR EXISTS (
+            SELECT 1 FROM public.attendance_sessions s
+            WHERE s.id = attendance_records.session_id
+              AND public.is_teacher_assigned_to_batch(s.institute_id, s.batch_id)
+        )
+    );
+
+CREATE POLICY "Attendance records write policy: Assigned teachers and admins only"
+    ON public.attendance_records FOR ALL
+    USING (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR EXISTS (
+            SELECT 1 FROM public.attendance_sessions s
+            WHERE s.id = attendance_records.session_id
+              AND public.is_teacher_assigned_to_batch(s.institute_id, s.batch_id)
+        )
+    )
+    WITH CHECK (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR EXISTS (
+            SELECT 1 FROM public.attendance_sessions s
+            WHERE s.id = attendance_records.session_id
+              AND public.is_teacher_assigned_to_batch(s.institute_id, s.batch_id)
+        )
+    );
+
+-- 9. Tightened RLS on Students: Teachers can ONLY view students in their assigned cohorts
+DROP POLICY IF EXISTS "Institute members can view students" ON public.students;
+DROP POLICY IF EXISTS "Students select policy: Owners/Admins view all; Teachers view assigned cohorts only" ON public.students;
+
+CREATE POLICY "Students select policy: Owners/Admins view all; Teachers view assigned cohorts only"
+    ON public.students FOR SELECT
+    USING (
+        public.is_platform_super_admin()
+        OR public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR (
+            batch_id IS NOT NULL 
+            AND public.is_teacher_assigned_to_batch(institute_id, batch_id)
+        )
+        OR EXISTS (
+            SELECT 1 FROM public.attendance_records ar
+            JOIN public.attendance_sessions asess ON ar.session_id = asess.id
+            WHERE ar.student_id = students.id
+              AND public.is_teacher_assigned_to_batch(asess.institute_id, asess.batch_id)
+        )
+    );
+
+-- 10. Commercial Subscriptions Quota Lock: Read-only for Tenant Owners; Updates Super Admin Only
+DROP POLICY IF EXISTS "Owners can update commercial subscription" ON public.commercial_subscriptions;
+DROP POLICY IF EXISTS "Commercial subscription update policy: Platform Super Admins only" ON public.commercial_subscriptions;
+
+CREATE POLICY "Commercial subscription update policy: Platform Super Admins only"
+    ON public.commercial_subscriptions FOR ALL
+    USING (public.is_platform_super_admin())
+    WITH CHECK (public.is_platform_super_admin());
+-- ==============================================================================
+-- FIXIA CoachingOS — Migration 007: Expenses, Batch Schedules & Student Transfers
+-- ==============================================================================
+
+-- 1. Create Institute Expenses Table
+CREATE TABLE IF NOT EXISTS public.expenses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id UUID NOT NULL REFERENCES public.institutes(id) ON DELETE CASCADE,
+    category VARCHAR(50) NOT NULL CHECK (
+        category IN ('rent', 'salaries', 'utilities', 'stationery', 'marketing', 'maintenance', 'software', 'other')
+    ),
+    amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+    expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    title VARCHAR(255) NOT NULL,
+    recipient VARCHAR(255),
+    payment_mode VARCHAR(32) NOT NULL DEFAULT 'upi' CHECK (
+        payment_mode IN ('cash', 'upi', 'bank_transfer', 'cheque', 'card', 'other')
+    ),
+    reference_number VARCHAR(100),
+    notes TEXT,
+    receipt_voucher_url TEXT,
+    created_by UUID REFERENCES public.profiles(id),
+    is_voided BOOLEAN NOT NULL DEFAULT FALSE,
+    voided_at TIMESTAMPTZ,
+    voided_by UUID REFERENCES public.profiles(id),
+    void_reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for performance & analytics
+CREATE INDEX IF NOT EXISTS idx_expenses_institute_date ON public.expenses (institute_id, expense_date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_institute_category ON public.expenses (institute_id, category);
+
+-- Trigger to prevent cross-tenant mutation on expenses
+DROP TRIGGER IF EXISTS trg_prevent_cross_tenant_expenses ON public.expenses;
+CREATE TRIGGER trg_prevent_cross_tenant_expenses
+    BEFORE UPDATE ON public.expenses
+    FOR EACH ROW EXECUTE FUNCTION public.prevent_cross_tenant_update();
+
+-- Row Level Security for Expenses
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Expenses select policy: Owners and Admins only" ON public.expenses;
+CREATE POLICY "Expenses select policy: Owners and Admins only"
+    ON public.expenses FOR SELECT
+    USING (
+        public.is_platform_super_admin()
+        OR public.get_user_role(institute_id) IN ('owner', 'admin')
+    );
+
+DROP POLICY IF EXISTS "Expenses insert policy: Owners and Admins only" ON public.expenses;
+CREATE POLICY "Expenses insert policy: Owners and Admins only"
+    ON public.expenses FOR INSERT
+    WITH CHECK (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+    );
+
+DROP POLICY IF EXISTS "Expenses update policy: Owners and Admins only" ON public.expenses;
+CREATE POLICY "Expenses update policy: Owners and Admins only"
+    ON public.expenses FOR UPDATE
+    USING (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+    )
+    WITH CHECK (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+    );
+-- Note: Hard DELETE is intentionally disallowed to preserve financial audit trail (voiding only).
+
+
+-- 2. Create Batch Schedules & Classroom Allocation Table
+CREATE TABLE IF NOT EXISTS public.batch_schedules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id UUID NOT NULL REFERENCES public.institutes(id) ON DELETE CASCADE,
+    batch_id UUID NOT NULL REFERENCES public.batches(id) ON DELETE CASCADE,
+    day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6), -- 0=Sunday, 1=Monday... 6=Saturday
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    room_number VARCHAR(50),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT chk_schedule_time_order CHECK (end_time > start_time)
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedules_batch ON public.batch_schedules (batch_id, day_of_week);
+CREATE INDEX IF NOT EXISTS idx_schedules_room ON public.batch_schedules (institute_id, room_number, day_of_week);
+
+-- Room double-booking / collision prevention trigger
+CREATE OR REPLACE FUNCTION public.check_room_schedule_collision()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_conflict_count INTEGER;
+BEGIN
+    IF NEW.room_number IS NOT NULL AND BTRIM(NEW.room_number) <> '' AND NEW.is_active = TRUE THEN
+        SELECT COUNT(*) INTO v_conflict_count
+        FROM public.batch_schedules
+        WHERE institute_id = NEW.institute_id
+          AND id <> COALESCE(NEW.id, '00000000-0000-0000-0000-000000000000'::uuid)
+          AND room_number = NEW.room_number
+          AND day_of_week = NEW.day_of_week
+          AND is_active = TRUE
+          AND (
+              (start_time, end_time) OVERLAPS (NEW.start_time, NEW.end_time)
+          );
+
+        IF v_conflict_count > 0 THEN
+            RAISE EXCEPTION 'ERR_ROOM_COLLISION: Room "%" is already scheduled on day % during this time slot.',
+                NEW.room_number, NEW.day_of_week;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_check_room_collision ON public.batch_schedules;
+CREATE TRIGGER trg_check_room_collision
+    BEFORE INSERT OR UPDATE ON public.batch_schedules
+    FOR EACH ROW EXECUTE FUNCTION public.check_room_schedule_collision();
+
+-- Row Level Security for Batch Schedules
+ALTER TABLE public.batch_schedules ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Schedules select policy: Admins and assigned teachers" ON public.batch_schedules;
+CREATE POLICY "Schedules select policy: Admins and assigned teachers"
+    ON public.batch_schedules FOR SELECT
+    USING (
+        public.is_platform_super_admin()
+        OR public.get_user_role(institute_id) IN ('owner', 'admin')
+        OR public.is_teacher_assigned_to_batch(institute_id, batch_id)
+    );
+
+DROP POLICY IF EXISTS "Schedules write policy: Owners and Admins only" ON public.batch_schedules;
+CREATE POLICY "Schedules write policy: Owners and Admins only"
+    ON public.batch_schedules FOR ALL
+    USING (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+    )
+    WITH CHECK (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+    );
+
+
+-- 3. Create Student Batch Transfer History Table
+CREATE TABLE IF NOT EXISTS public.student_batch_transfers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id UUID NOT NULL REFERENCES public.institutes(id) ON DELETE CASCADE,
+    student_id UUID NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+    from_batch_id UUID REFERENCES public.batches(id) ON DELETE SET NULL,
+    to_batch_id UUID REFERENCES public.batches(id) ON DELETE SET NULL,
+    transfer_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    reason TEXT,
+    transferred_by UUID REFERENCES public.profiles(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_transfers_student ON public.student_batch_transfers (student_id, transfer_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transfers_institute ON public.student_batch_transfers (institute_id);
+
+-- Auto-audit trigger when student.batch_id changes
+CREATE OR REPLACE FUNCTION public.log_student_batch_transfer()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.batch_id IS DISTINCT FROM NEW.batch_id THEN
+        INSERT INTO public.student_batch_transfers (
+            institute_id,
+            student_id,
+            from_batch_id,
+            to_batch_id,
+            transfer_date,
+            transferred_by
+        ) VALUES (
+            NEW.institute_id,
+            NEW.id,
+            OLD.batch_id,
+            NEW.batch_id,
+            CURRENT_DATE,
+            auth.uid()
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_auto_log_student_batch_transfer ON public.students;
+CREATE TRIGGER trg_auto_log_student_batch_transfer
+    AFTER UPDATE OF batch_id ON public.students
+    FOR EACH ROW EXECUTE FUNCTION public.log_student_batch_transfer();
+
+-- Row Level Security for Student Batch Transfers
+ALTER TABLE public.student_batch_transfers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Transfers select policy: Institute members" ON public.student_batch_transfers;
+CREATE POLICY "Transfers select policy: Institute members"
+    ON public.student_batch_transfers FOR SELECT
+    USING (
+        public.is_platform_super_admin()
+        OR public.user_belongs_to_institute(institute_id)
+    );
+
+DROP POLICY IF EXISTS "Transfers insert policy: Owners and Admins only" ON public.student_batch_transfers;
+CREATE POLICY "Transfers insert policy: Owners and Admins only"
+    ON public.student_batch_transfers FOR INSERT
+    WITH CHECK (
+        public.get_user_role(institute_id) IN ('owner', 'admin')
+    );
+
+
+-- 4. Stored Procedures: Staff Provisioning & Management
+CREATE OR REPLACE FUNCTION public.create_staff_member(
+    p_institute_id UUID,
+    p_email VARCHAR,
+    p_full_name VARCHAR,
+    p_role VARCHAR DEFAULT 'teacher',
+    p_assigned_batches JSONB DEFAULT '[]'::jsonb
+)
+RETURNS UUID AS $$
+DECLARE
+    v_caller_role VARCHAR;
+    v_target_user_id UUID;
+BEGIN
+    -- Verify caller is Owner or Admin in the institute
+    v_caller_role := public.get_user_role(p_institute_id);
+    IF v_caller_role NOT IN ('owner', 'admin') AND NOT public.is_platform_super_admin() THEN
+        RAISE EXCEPTION 'ERR_UNAUTHORIZED: Only institute owners and admins can provision staff members.';
+    END IF;
+
+    -- Validate role
+    IF p_role NOT IN ('teacher', 'faculty', 'staff', 'admin') THEN
+        RAISE EXCEPTION 'ERR_INVALID_ROLE: Role "%" is not a valid staff role.', p_role;
+    END IF;
+
+    -- Look up existing profile by email
+    SELECT id INTO v_target_user_id
+    FROM public.profiles
+    WHERE LOWER(email) = LOWER(p_email);
+
+    -- If profile does not exist yet, create a stub profile
+    IF v_target_user_id IS NULL THEN
+        INSERT INTO public.profiles (email, full_name)
+        VALUES (LOWER(p_email), p_full_name)
+        RETURNING id INTO v_target_user_id;
+    END IF;
+
+    -- Upsert membership
+    INSERT INTO public.memberships (
+        institute_id,
+        user_id,
+        role,
+        assigned_batches,
+        is_active
+    ) VALUES (
+        p_institute_id,
+        v_target_user_id,
+        p_role,
+        COALESCE(p_assigned_batches, '[]'::jsonb),
+        TRUE
+    )
+    ON CONFLICT (institute_id, user_id) DO UPDATE SET
+        role = EXCLUDED.role,
+        assigned_batches = EXCLUDED.assigned_batches,
+        is_active = TRUE,
+        updated_at = NOW();
+
+    -- Log to audit trail
+    INSERT INTO public.audit_logs (
+        institute_id,
+        user_id,
+        action,
+        entity_type,
+        entity_id,
+        new_data
+    ) VALUES (
+        p_institute_id,
+        auth.uid(),
+        'STAFF_PROVISIONED',
+        'membership',
+        v_target_user_id,
+        jsonb_build_object(
+            'email', p_email,
+            'full_name', p_full_name,
+            'role', p_role,
+            'assigned_batches', p_assigned_batches
+        )
+    );
+
+    RETURN v_target_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 5. Stored Procedure: Deactivate Staff Member
+CREATE OR REPLACE FUNCTION public.deactivate_staff_member(
+    p_institute_id UUID,
+    p_user_id UUID
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_caller_role VARCHAR;
+    v_target_role VARCHAR;
+BEGIN
+    v_caller_role := public.get_user_role(p_institute_id);
+    IF v_caller_role NOT IN ('owner', 'admin') AND NOT public.is_platform_super_admin() THEN
+        RAISE EXCEPTION 'ERR_UNAUTHORIZED: Only institute owners and admins can deactivate staff.';
+    END IF;
+
+    -- Ensure caller cannot deactivate themselves
+    IF auth.uid() = p_user_id THEN
+        RAISE EXCEPTION 'ERR_SELF_DEACTIVATION: You cannot deactivate your own account.';
+    END IF;
+
+    -- Ensure target is not the owner
+    SELECT role INTO v_target_role
+    FROM public.memberships
+    WHERE institute_id = p_institute_id AND user_id = p_user_id;
+
+    IF v_target_role = 'owner' THEN
+        RAISE EXCEPTION 'ERR_CANNOT_DEACTIVATE_OWNER: The institute owner cannot be deactivated.';
+    END IF;
+
+    UPDATE public.memberships
+    SET is_active = FALSE,
+        updated_at = NOW()
+    WHERE institute_id = p_institute_id AND user_id = p_user_id;
+
+    -- Log to audit trail
+    INSERT INTO public.audit_logs (
+        institute_id,
+        user_id,
+        action,
+        entity_type,
+        entity_id,
+        new_data
+    ) VALUES (
+        p_institute_id,
+        auth.uid(),
+        'STAFF_DEACTIVATED',
+        'membership',
+        p_user_id,
+        jsonb_build_object('is_active', FALSE)
+    );
+
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 6. Stored Procedure: Explicit Student Batch Transfer with Reason
+CREATE OR REPLACE FUNCTION public.transfer_student_batch(
+    p_institute_id UUID,
+    p_student_id UUID,
+    p_new_batch_id UUID,
+    p_reason TEXT DEFAULT NULL
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_caller_role VARCHAR;
+    v_old_batch_id UUID;
+BEGIN
+    v_caller_role := public.get_user_role(p_institute_id);
+    IF v_caller_role NOT IN ('owner', 'admin') AND NOT public.is_platform_super_admin() THEN
+        RAISE EXCEPTION 'ERR_UNAUTHORIZED: Only institute owners and admins can transfer students.';
+    END IF;
+
+    SELECT batch_id INTO v_old_batch_id
+    FROM public.students
+    WHERE id = p_student_id AND institute_id = p_institute_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'ERR_STUDENT_NOT_FOUND: Student does not exist in this institute.';
+    END IF;
+
+    IF v_old_batch_id IS NOT DISTINCT FROM p_new_batch_id THEN
+        RETURN TRUE; -- No transfer required
+    END IF;
+
+    -- Update student batch
+    UPDATE public.students
+    SET batch_id = p_new_batch_id,
+        updated_at = NOW()
+    WHERE id = p_student_id AND institute_id = p_institute_id;
+
+    -- Insert transfer record with detailed reason
+    INSERT INTO public.student_batch_transfers (
+        institute_id,
+        student_id,
+        from_batch_id,
+        to_batch_id,
+        transfer_date,
+        reason,
+        transferred_by
+    ) VALUES (
+        p_institute_id,
+        p_student_id,
+        v_old_batch_id,
+        p_new_batch_id,
+        CURRENT_DATE,
+        p_reason,
+        auth.uid()
+    );
+
+    -- Log to audit trail
+    INSERT INTO public.audit_logs (
+        institute_id,
+        user_id,
+        action,
+        entity_type,
+        entity_id,
+        new_data
+    ) VALUES (
+        p_institute_id,
+        auth.uid(),
+        'STUDENT_BATCH_TRANSFERRED',
+        'student',
+        p_student_id,
+        jsonb_build_object(
+            'from_batch_id', v_old_batch_id,
+            'to_batch_id', p_new_batch_id,
+            'reason', p_reason
+        )
+    );
+
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

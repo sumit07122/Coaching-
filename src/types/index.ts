@@ -50,6 +50,7 @@ export interface Batch {
   code: string;
   course: string;
   instructor: string;
+  instructorUserId?: string;
   scheduleDays: string; // e.g. "Mon, Wed, Fri"
   timing: string; // e.g. "04:30 PM - 06:00 PM"
   room: string;
@@ -258,7 +259,7 @@ export interface InstituteConfig {
   whatsappReminderTemplate: string;
 }
 
-export type UserRole = 'owner' | 'admin' | 'staff' | 'faculty';
+export type UserRole = 'owner' | 'admin' | 'staff' | 'faculty' | 'teacher';
 
 export interface UserProfile {
   id: string;
@@ -389,3 +390,92 @@ export interface DashboardStats {
   collectedThisMonth: number;
   pendingFees: number;
 }
+
+// ==============================================================================
+// Phase 12 Database Expansion Types: Expenses, Schedules & Transfers
+// ==============================================================================
+
+export type ExpenseCategory =
+  | 'rent'
+  | 'salaries'
+  | 'utilities'
+  | 'stationery'
+  | 'marketing'
+  | 'maintenance'
+  | 'software'
+  | 'other';
+
+export type ExpensePaymentMode = 'cash' | 'upi' | 'bank_transfer' | 'cheque' | 'card' | 'other';
+
+export interface Expense {
+  id: string;
+  instituteId: string;
+  institute_id?: string;
+  category: ExpenseCategory;
+  amount: number;
+  expenseDate: string; // YYYY-MM-DD
+  title: string;
+  recipient?: string;
+  paymentMode: ExpensePaymentMode;
+  referenceNumber?: string;
+  notes?: string;
+  receiptVoucherUrl?: string;
+  createdBy?: string;
+  isVoided: boolean;
+  voidedAt?: string;
+  voidedBy?: string;
+  voidReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateExpenseInput {
+  category: ExpenseCategory;
+  amount: number;
+  expenseDate?: string;
+  title: string;
+  recipient?: string;
+  paymentMode: ExpensePaymentMode;
+  referenceNumber?: string;
+  notes?: string;
+  receiptVoucherUrl?: string;
+}
+
+export interface BatchSchedule {
+  id: string;
+  instituteId: string;
+  institute_id?: string;
+  batchId: string;
+  dayOfWeek: number; // 0=Sunday, 1=Monday... 6=Saturday
+  startTime: string; // HH:MM or HH:MM:SS
+  endTime: string; // HH:MM or HH:MM:SS
+  roomNumber?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateBatchScheduleInput {
+  batchId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  roomNumber?: string;
+}
+
+export interface StudentBatchTransfer {
+  id: string;
+  instituteId: string;
+  institute_id?: string;
+  studentId: string;
+  studentName?: string;
+  fromBatchId?: string;
+  fromBatchName?: string;
+  toBatchId?: string;
+  toBatchName?: string;
+  transferDate: string; // YYYY-MM-DD
+  reason?: string;
+  transferredBy?: string;
+  createdAt: string;
+}
+

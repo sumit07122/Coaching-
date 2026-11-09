@@ -115,3 +115,4 @@ The database migrations follow a strict chronological and dependency-managed lin
   - Student batch transfer trigger records historical entry.
   - Expenses calculate net profit accurately.
 - [ ] **Step 7: Verify Full Test Suite & Production Build** (`vitest run --run` and `npm run build`).
+

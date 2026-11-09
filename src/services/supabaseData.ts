@@ -25,6 +25,11 @@ import {
   AttendanceStatus,
   FeeStatus,
   UserRole,
+  Expense,
+  ExpenseCategory,
+  ExpensePaymentMode,
+  BatchSchedule,
+  StudentBatchTransfer,
 } from '../types';
 
 // ==============================================================================
@@ -102,6 +107,7 @@ export function mapBatchFromDb(row: any, studentCount: number = 0): Batch {
     name: row.name,
     course: row.course,
     instructor: row.instructor_name || 'Faculty Assigned',
+    instructorUserId: row.instructor_user_id || undefined,
     scheduleDays: row.schedule_days,
     timing: row.timing,
     room: row.room || 'Room 101',
@@ -122,6 +128,7 @@ export function mapBatchToDb(batch: Partial<Batch>, instituteId: string): any {
   if (batch.name !== undefined) dbRecord.name = batch.name;
   if (batch.course !== undefined) dbRecord.course = batch.course;
   if (batch.instructor !== undefined) dbRecord.instructor_name = batch.instructor;
+  if (batch.instructorUserId !== undefined) dbRecord.instructor_user_id = batch.instructorUserId || null;
   if (batch.scheduleDays !== undefined) dbRecord.schedule_days = batch.scheduleDays;
   if (batch.timing !== undefined) dbRecord.timing = batch.timing;
   if (batch.room !== undefined) dbRecord.room = batch.room;
@@ -314,6 +321,97 @@ export function mapCommercialSubFromDb(row: any): CommercialSubscription {
   };
 }
 
+export function mapExpenseFromDb(row: any): Expense {
+  return {
+    id: row.id,
+    instituteId: row.institute_id,
+    institute_id: row.institute_id,
+    category: row.category as ExpenseCategory,
+    amount: Number(row.amount) || 0,
+    expenseDate: row.expense_date,
+    title: row.title,
+    recipient: row.recipient || undefined,
+    paymentMode: (row.payment_mode || 'upi') as ExpensePaymentMode,
+    referenceNumber: row.reference_number || undefined,
+    notes: row.notes || undefined,
+    receiptVoucherUrl: row.receipt_voucher_url || undefined,
+    createdBy: row.created_by || undefined,
+    isVoided: Boolean(row.is_voided),
+    voidedAt: row.voided_at || undefined,
+    voidedBy: row.voided_by || undefined,
+    voidReason: row.void_reason || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapExpenseToDb(expense: Partial<Expense>, instituteId: string): any {
+  const dbRecord: any = {
+    institute_id: instituteId,
+  };
+
+  if (expense.category !== undefined) dbRecord.category = expense.category;
+  if (expense.amount !== undefined) dbRecord.amount = expense.amount;
+  if (expense.expenseDate !== undefined) dbRecord.expense_date = expense.expenseDate;
+  if (expense.title !== undefined) dbRecord.title = expense.title;
+  if (expense.recipient !== undefined) dbRecord.recipient = expense.recipient || null;
+  if (expense.paymentMode !== undefined) dbRecord.payment_mode = expense.paymentMode;
+  if (expense.referenceNumber !== undefined) dbRecord.reference_number = expense.referenceNumber || null;
+  if (expense.notes !== undefined) dbRecord.notes = expense.notes || null;
+  if (expense.receiptVoucherUrl !== undefined) dbRecord.receipt_voucher_url = expense.receiptVoucherUrl || null;
+
+  return dbRecord;
+}
+
+export function mapScheduleFromDb(row: any): BatchSchedule {
+  return {
+    id: row.id,
+    instituteId: row.institute_id,
+    institute_id: row.institute_id,
+    batchId: row.batch_id,
+    dayOfWeek: row.day_of_week,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    roomNumber: row.room_number || undefined,
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapScheduleToDb(schedule: Partial<BatchSchedule>, instituteId: string): any {
+  const dbRecord: any = {
+    institute_id: instituteId,
+  };
+
+  if (schedule.batchId !== undefined) dbRecord.batch_id = schedule.batchId;
+  if (schedule.dayOfWeek !== undefined) dbRecord.day_of_week = schedule.dayOfWeek;
+  if (schedule.startTime !== undefined) dbRecord.start_time = schedule.startTime;
+  if (schedule.endTime !== undefined) dbRecord.end_time = schedule.endTime;
+  if (schedule.roomNumber !== undefined) dbRecord.room_number = schedule.roomNumber || null;
+  if (schedule.isActive !== undefined) dbRecord.is_active = schedule.isActive;
+
+  return dbRecord;
+}
+
+export function mapTransferFromDb(row: any): StudentBatchTransfer {
+  return {
+    id: row.id,
+    instituteId: row.institute_id,
+    institute_id: row.institute_id,
+    studentId: row.student_id,
+    studentName: row.students?.full_name || undefined,
+    fromBatchId: row.from_batch_id || undefined,
+    fromBatchName: row.from_batch?.name || undefined,
+    toBatchId: row.to_batch_id || undefined,
+    toBatchName: row.to_batch?.name || undefined,
+    transferDate: row.transfer_date,
+    reason: row.reason || undefined,
+    transferredBy: row.transferred_by || undefined,
+    createdAt: row.created_at,
+  };
+}
+
 // ==============================================================================
 // 2. Data Access Queries (READ)
 // ==============================================================================
@@ -328,6 +426,9 @@ export interface InstituteDataPayload {
   staff: StaffMember[];
   auditLogs: AuditLog[];
   commercialSubscription: CommercialSubscription;
+  expenses: Expense[];
+  batchSchedules: BatchSchedule[];
+  batchTransfers: StudentBatchTransfer[];
 }
 
 /**
@@ -454,6 +555,36 @@ export async function fetchInstituteData(instituteId: string): Promise<Institute
           sourceCodeOwnership: false,
         };
 
+    // 10. Expenses
+    const { data: expensesRaw, error: expensesErr } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('institute_id', instituteId)
+      .order('expense_date', { ascending: false });
+
+    if (expensesErr) console.warn('Note on fetching expenses:', expensesErr.message);
+    const expenses = (expensesRaw || []).map(mapExpenseFromDb);
+
+    // 11. Batch Schedules
+    const { data: schedulesRaw, error: schedulesErr } = await supabase
+      .from('batch_schedules')
+      .select('*')
+      .eq('institute_id', instituteId)
+      .order('day_of_week', { ascending: true });
+
+    if (schedulesErr) console.warn('Note on fetching schedules:', schedulesErr.message);
+    const batchSchedules = (schedulesRaw || []).map(mapScheduleFromDb);
+
+    // 12. Student Batch Transfers
+    const { data: transfersRaw, error: transfersErr } = await supabase
+      .from('student_batch_transfers')
+      .select('*, students(full_name)')
+      .eq('institute_id', instituteId)
+      .order('created_at', { ascending: false });
+
+    if (transfersErr) console.warn('Note on fetching transfers:', transfersErr.message);
+    const batchTransfers = (transfersRaw || []).map(mapTransferFromDb);
+
     return {
       students,
       batches,
@@ -464,6 +595,9 @@ export async function fetchInstituteData(instituteId: string): Promise<Institute
       staff,
       auditLogs,
       commercialSubscription,
+      expenses,
+      batchSchedules,
+      batchTransfers,
     };
   } catch (error) {
     console.error('Fatal error loading institute data from Supabase:', error);
@@ -809,3 +943,252 @@ export async function dbUpdateCommercialSubscription(
 
   return true;
 }
+
+// ==============================================================================
+// 4. Expenses Mutations & Queries
+// ==============================================================================
+
+export async function fetchExpenses(instituteId: string): Promise<Expense[]> {
+  if (!isSupabaseConfigured) return [];
+
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('*')
+    .eq('institute_id', instituteId)
+    .order('expense_date', { ascending: false });
+
+  if (error) {
+    console.warn('fetchExpenses failed:', error.message);
+    return [];
+  }
+
+  return (data || []).map(mapExpenseFromDb);
+}
+
+export async function dbCreateExpense(
+  instituteId: string,
+  expenseData: Partial<Expense>,
+  currentUserId?: string
+): Promise<Expense | null> {
+  if (!isSupabaseConfigured) return null;
+
+  const payload = mapExpenseToDb(expenseData, instituteId);
+  if (currentUserId && currentUserId.length > 20) {
+    payload.created_by = currentUserId;
+  }
+
+  const { data, error } = await supabase
+    .from('expenses')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return mapExpenseFromDb(data);
+}
+
+export async function dbVoidExpense(
+  instituteId: string,
+  expenseId: string,
+  reason: string,
+  currentUserId?: string
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  const { error } = await supabase
+    .from('expenses')
+    .update({
+      is_voided: true,
+      voided_at: new Date().toISOString(),
+      void_reason: reason,
+      voided_by: currentUserId && currentUserId.length > 20 ? currentUserId : null,
+    })
+    .eq('id', expenseId)
+    .eq('institute_id', instituteId);
+
+  if (error) throw new Error(error.message);
+
+  return true;
+}
+
+// ==============================================================================
+// 5. Batch Schedules & Timetable Queries & Mutations
+// ==============================================================================
+
+export async function fetchBatchSchedules(instituteId: string, batchId?: string): Promise<BatchSchedule[]> {
+  if (!isSupabaseConfigured) return [];
+
+  let query = supabase
+    .from('batch_schedules')
+    .select('*')
+    .eq('institute_id', instituteId);
+
+  if (batchId) {
+    query = query.eq('batch_id', batchId);
+  }
+
+  const { data, error } = await query.order('day_of_week', { ascending: true });
+
+  if (error) {
+    console.warn('fetchBatchSchedules failed:', error.message);
+    return [];
+  }
+
+  return (data || []).map(mapScheduleFromDb);
+}
+
+export async function dbCreateBatchSchedule(
+  instituteId: string,
+  scheduleData: Partial<BatchSchedule>
+): Promise<BatchSchedule | null> {
+  if (!isSupabaseConfigured) return null;
+
+  const payload = mapScheduleToDb(scheduleData, instituteId);
+  const { data, error } = await supabase
+    .from('batch_schedules')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return mapScheduleFromDb(data);
+}
+
+export async function dbDeleteBatchSchedule(instituteId: string, scheduleId: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  const { error } = await supabase
+    .from('batch_schedules')
+    .delete()
+    .eq('id', scheduleId)
+    .eq('institute_id', instituteId);
+
+  if (error) throw new Error(error.message);
+
+  return true;
+}
+
+// ==============================================================================
+// 6. Student Batch Transfers & Historical Roster Queries
+// ==============================================================================
+
+export async function fetchStudentBatchTransfers(
+  instituteId: string,
+  studentId?: string
+): Promise<StudentBatchTransfer[]> {
+  if (!isSupabaseConfigured) return [];
+
+  let query = supabase
+    .from('student_batch_transfers')
+    .select('*, students(full_name)')
+    .eq('institute_id', instituteId);
+
+  if (studentId) {
+    query = query.eq('student_id', studentId);
+  }
+
+  const { data, error } = await query.order('transfer_date', { ascending: false });
+
+  if (error) {
+    console.warn('fetchStudentBatchTransfers failed:', error.message);
+    return [];
+  }
+
+  return (data || []).map(mapTransferFromDb);
+}
+
+export async function dbTransferStudentBatch(
+  instituteId: string,
+  studentId: string,
+  newBatchId: string,
+  reason?: string
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  const { error } = await supabase.rpc('transfer_student_batch', {
+    p_institute_id: instituteId,
+    p_student_id: studentId,
+    p_new_batch_id: newBatchId,
+    p_reason: reason || null,
+  });
+
+  if (error) {
+    // Fallback if stored procedure not yet applied to database
+    const { error: fallbackErr } = await supabase
+      .from('students')
+      .update({ batch_id: newBatchId })
+      .eq('id', studentId)
+      .eq('institute_id', instituteId);
+
+    if (fallbackErr) throw new Error(fallbackErr.message);
+  }
+
+  return true;
+}
+
+// ==============================================================================
+// 7. Teacher Assigned Batches & Sandboxed Roaster
+// ==============================================================================
+
+export async function fetchTeacherBatches(instituteId: string, teacherUserId: string): Promise<Batch[]> {
+  if (!isSupabaseConfigured) return [];
+
+  // RLS on batches natively returns ONLY batches assigned to this teacher
+  const { data, error } = await supabase
+    .from('batches')
+    .select('*')
+    .eq('institute_id', instituteId)
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.warn('fetchTeacherBatches failed:', error.message);
+    return [];
+  }
+
+  return (data || []).map(b => mapBatchFromDb(b, 0));
+}
+
+// ==============================================================================
+// 8. Staff Provisioning & Management via Stored Procedures
+// ==============================================================================
+
+export async function dbCreateStaffMember(
+  instituteId: string,
+  email: string,
+  fullName: string,
+  role: string = 'teacher',
+  assignedBatches: string[] = []
+): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+
+  const { data, error } = await supabase.rpc('create_staff_member', {
+    p_institute_id: instituteId,
+    p_email: email.toLowerCase().trim(),
+    p_full_name: fullName.trim(),
+    p_role: role,
+    p_assigned_batches: assignedBatches,
+  });
+
+  if (error) throw new Error(error.message);
+
+  return data as string;
+}
+
+export async function dbDeactivateStaffMember(
+  instituteId: string,
+  userId: string
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  const { error } = await supabase.rpc('deactivate_staff_member', {
+    p_institute_id: instituteId,
+    p_user_id: userId,
+  });
+
+  if (error) throw new Error(error.message);
+
+  return true;
+}
+

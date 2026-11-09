@@ -349,3 +349,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 2. **Nullable New Columns & Default Values:** All newly added columns (`is_active`, `notes`, `receipt_voucher_url`) have safe defaults.
 3. **Dual Runtime Preserved:** Existing mock data fixtures (`src/data/mockData.ts`) continue to power local unit tests with zero regressions.
 4. **Existing Tests Invariance:** All 132 existing unit, calculation, and RLS tests will pass without alteration.
+
