@@ -44,6 +44,7 @@ export const Settings: React.FC = () => {
     instituteConfig,
     updateInstituteConfig,
     resetToDemoDefaults,
+    resetAllDataToZero,
     setIsArchitectureModalOpen,
     auditLogs,
     commercialSubscription,
@@ -243,14 +244,25 @@ export const Settings: React.FC = () => {
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
+  const handleResetToZero = () => {
+    if (
+      window.confirm(
+        'Warning: This will reset ALL student records, batches, attendance logs, payments, expenses, and staff to ZERO (0). This creates a fresh, clean slate for your live institute. Continue?'
+      )
+    ) {
+      resetAllDataToZero();
+      alert('All workspace records have been reset to 0.');
+    }
+  };
+
   const handleResetData = () => {
     if (
       window.confirm(
-        'Warning: This will reset all student records, batches, attendance logs, payments, and staff back to factory defaults (85 students, 6 batches, ₹32,000 collected, ₹18,500 pending). Continue?'
+        'Warning: This will populate your workspace with sample demo data (85 students, 6 batches, ₹32,000 collected, ₹18,500 pending). Continue?'
       )
     ) {
       resetToDemoDefaults();
-      alert('Demo data has been reset to defaults.');
+      alert('Sample demo data has been loaded.');
     }
   };
 
@@ -271,9 +283,18 @@ export const Settings: React.FC = () => {
           <Button
             variant="outline"
             icon={<RotateCcw size={15} />}
+            onClick={handleResetToZero}
+            style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+          >
+            Reset All Data to 0
+          </Button>
+
+          <Button
+            variant="outline"
+            icon={<RotateCcw size={15} />}
             onClick={handleResetData}
           >
-            Reset Factory Data
+            Load Sample Data
           </Button>
 
           <Button

@@ -313,7 +313,7 @@ export const Login: React.FC = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
+                gridTemplateColumns: isProduction ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
                 gap: '4px',
                 backgroundColor: '#0f172a',
                 padding: '4px',
@@ -321,23 +321,25 @@ export const Login: React.FC = () => {
                 marginBottom: '20px',
               }}
             >
-              <button
-                type="button"
-                onClick={() => setActiveTab('demo')}
-                style={{
-                  padding: '7px 0',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  backgroundColor: activeTab === 'demo' ? '#2563eb' : 'transparent',
-                  color: activeTab === 'demo' ? '#ffffff' : '#94a3b8',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                1-Click Demo
-              </button>
+              {!isProduction && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('demo')}
+                  style={{
+                    padding: '7px 0',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: activeTab === 'demo' ? '#2563eb' : 'transparent',
+                    color: activeTab === 'demo' ? '#ffffff' : '#94a3b8',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  1-Click Demo
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setActiveTab('email')}

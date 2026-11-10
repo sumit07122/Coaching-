@@ -53,7 +53,11 @@ export const isSupabaseConfigured = Boolean(
   rawSupabaseUrl &&
   safeAnonKey &&
   !rawSupabaseUrl.includes('your-project-id') &&
-  !rawSupabaseUrl.includes('placeholder-fixia')
+  !rawSupabaseUrl.includes('placeholder-fixia') &&
+  !safeAnonKey.includes('YOUR_ANON_PUBLIC_KEY') &&
+  !safeAnonKey.includes('placeholder-anon-key') &&
+  safeAnonKey.startsWith('ey') &&
+  safeAnonKey.length > 30
 );
 
 // Fallback values for local demo development when Supabase is not yet connected

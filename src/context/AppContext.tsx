@@ -186,6 +186,7 @@ interface AppContextType {
 
   updateInstituteConfig: (updates: Partial<InstituteConfig>) => void;
   resetToDemoDefaults: () => void;
+  resetAllDataToZero: () => void;
 }
 
 const STORAGE_PREFIX = 'fixia_coachingos_v1_';
@@ -420,18 +421,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fetchInstituteData(currentUser.instituteId)
         .then(data => {
           if (!data) return;
-          if (data.students && data.students.length > 0) setStudents(data.students);
-          if (data.batches && data.batches.length > 0) setBatches(data.batches);
-          if (data.feePlans && data.feePlans.length > 0) setFeePlans(data.feePlans);
-          if (data.payments && data.payments.length > 0) setPayments(data.payments);
-          if (data.attendanceSessions && data.attendanceSessions.length > 0) setAttendanceSessions(data.attendanceSessions);
-          if (data.attendance && data.attendance.length > 0) setAttendance(data.attendance);
-          if (data.staff && data.staff.length > 0) setStaff(data.staff);
-          if (data.auditLogs && data.auditLogs.length > 0) setAuditLogs(data.auditLogs);
+          if (Array.isArray(data.students)) setStudents(data.students);
+          if (Array.isArray(data.batches)) setBatches(data.batches);
+          if (Array.isArray(data.feePlans)) setFeePlans(data.feePlans);
+          if (Array.isArray(data.payments)) setPayments(data.payments);
+          if (Array.isArray(data.attendanceSessions)) setAttendanceSessions(data.attendanceSessions);
+          if (Array.isArray(data.attendance)) setAttendance(data.attendance);
+          if (Array.isArray(data.staff)) setStaff(data.staff);
+          if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
           if (data.commercialSubscription) setCommercialSubscription(data.commercialSubscription);
-          if (data.expenses && data.expenses.length > 0) setExpenses(data.expenses);
-          if (data.batchSchedules && data.batchSchedules.length > 0) setBatchSchedules(data.batchSchedules);
-          if (data.batchTransfers && data.batchTransfers.length > 0) setBatchTransfers(data.batchTransfers);
+          if (Array.isArray(data.expenses)) setExpenses(data.expenses);
+          if (Array.isArray(data.batchSchedules)) setBatchSchedules(data.batchSchedules);
+          if (Array.isArray(data.batchTransfers)) setBatchTransfers(data.batchTransfers);
         })
         .catch(err => {
           console.error('Failed to load institute records from Supabase:', err);
@@ -2026,6 +2027,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPreviewReceipt(null);
   };
 
+  const resetAllDataToZero = () => {
+    localStorage.removeItem(`${STORAGE_PREFIX}students`);
+    localStorage.removeItem(`${STORAGE_PREFIX}batches`);
+    localStorage.removeItem(`${STORAGE_PREFIX}attendance`);
+    localStorage.removeItem(`${STORAGE_PREFIX}attendance_sessions`);
+    localStorage.removeItem(`${STORAGE_PREFIX}payments`);
+    localStorage.removeItem(`${STORAGE_PREFIX}fee_plans`);
+    localStorage.removeItem(`${STORAGE_PREFIX}staff`);
+    localStorage.removeItem(`${STORAGE_PREFIX}audit_logs`);
+    localStorage.removeItem(`${STORAGE_PREFIX}notifications`);
+    localStorage.removeItem(`${STORAGE_PREFIX}expenses`);
+    localStorage.removeItem(`${STORAGE_PREFIX}schedules`);
+    localStorage.removeItem(`${STORAGE_PREFIX}transfers`);
+
+    // Write empty arrays to storage so clean zero state persists across reload
+    localStorage.setItem(`${STORAGE_PREFIX}students`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}batches`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}attendance`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}attendance_sessions`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}payments`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}fee_plans`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}staff`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}audit_logs`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}notifications`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}expenses`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}schedules`, '[]');
+    localStorage.setItem(`${STORAGE_PREFIX}transfers`, '[]');
+
+    setStudents([]);
+    setBatches([]);
+    setAttendance([]);
+    setAttendanceSessions([]);
+    setPayments([]);
+    setFeePlans([]);
+    setStaff([]);
+    setAuditLogs([]);
+    setNotifications([]);
+    setExpenses([]);
+    setBatchSchedules([]);
+    setBatchTransfers([]);
+    setPreviewReceipt(null);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -2111,6 +2155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         updateInstituteConfig,
         resetToDemoDefaults,
+        resetAllDataToZero,
       }}
     >
       {children}
