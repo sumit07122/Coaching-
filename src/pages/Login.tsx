@@ -37,11 +37,9 @@ export const Login: React.FC = () => {
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || '/';
 
-  // Tabs: 'demo' | 'email' | 'register' - In production mode, default to real email sign in
-  const [activeTab, setActiveTab] = useState<'demo' | 'email' | 'register'>(
-    isProduction ? 'email' : 'demo'
-  );
-  const [selectedDemoUserId, setSelectedDemoUserId] = useState<string>(demoUsers[0]?.id || 'USR-001');
+  // Tabs: 'demo' | 'email' | 'register'
+  const [activeTab, setActiveTab] = useState<'demo' | 'email' | 'register'>('demo');
+  const [selectedDemoUserId, setSelectedDemoUserId] = useState<string>(demoUsers[0]?.id || 'USR-01');
 
   // Email login form
   const [emailInput, setEmailInput] = useState('');
@@ -61,11 +59,13 @@ export const Login: React.FC = () => {
   const [resetEmail, setResetEmail] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
 
-  const handleEnterDemo = () => {
-    loginAsDemoUser(selectedDemoUserId);
-    const targetUser = demoUsers.find(u => u.id === selectedDemoUserId);
+  const handleEnterDemo = (overrideUserId?: string) => {
+    const userIdToUse = overrideUserId || selectedDemoUserId;
+    loginAsDemoUser(userIdToUse);
+    const targetUser = demoUsers.find(u => u.id === userIdToUse);
+    const isSuperAdmin = targetUser?.role === 'super_admin';
     const isTeacher = targetUser?.role === 'faculty' || targetUser?.role === 'teacher';
-    const dest = isTeacher ? (from.startsWith('/teacher') ? from : '/teacher') : from;
+    const dest = isSuperAdmin ? '/superadmin' : isTeacher ? '/teacher' : '/';
     navigate(dest, { replace: true });
   };
 
@@ -76,13 +76,15 @@ export const Login: React.FC = () => {
     if (ok) {
       const savedUser = localStorage.getItem('fixia_auth_user_v2');
       let isTeacher = false;
+      let isSuperAdmin = false;
       if (savedUser) {
         try {
           const parsed = JSON.parse(savedUser);
           isTeacher = parsed.role === 'faculty' || parsed.role === 'teacher';
+          isSuperAdmin = parsed.role === 'super_admin';
         } catch {}
       }
-      const dest = isTeacher ? (from.startsWith('/teacher') ? from : '/teacher') : from;
+      const dest = isSuperAdmin ? '/superadmin' : isTeacher ? '/teacher' : '/';
       navigate(dest, { replace: true });
     }
   };
@@ -313,7 +315,7 @@ export const Login: React.FC = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isProduction ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+                gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '4px',
                 backgroundColor: '#0f172a',
                 padding: '4px',
@@ -321,25 +323,23 @@ export const Login: React.FC = () => {
                 marginBottom: '20px',
               }}
             >
-              {!isProduction && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('demo')}
-                  style={{
-                    padding: '7px 0',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    borderRadius: '6px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: activeTab === 'demo' ? '#2563eb' : 'transparent',
-                    color: activeTab === 'demo' ? '#ffffff' : '#94a3b8',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  1-Click Demo
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setActiveTab('demo')}
+                style={{
+                  padding: '7px 0',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: activeTab === 'demo' ? '#2563eb' : 'transparent',
+                  color: activeTab === 'demo' ? '#ffffff' : '#94a3b8',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                1-Click Demo
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('email')}
@@ -400,109 +400,185 @@ export const Login: React.FC = () => {
             {activeTab === 'demo' && (
               <div>
                 <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#ffffff', marginBottom: '4px' }}>
-                  Select Demo Persona
+                  1-Click Instant Demo Login
                 </h3>
-                <p style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '14px' }}>
-                  Explore how different institute roles experience FIXIA CoachingOS.
+                <p style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '16px' }}>
+                  Click any role below to immediately enter its dedicated workspace portal:
                 </p>
 
-                {isProduction && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                  {/* Card 1: Owner */}
                   <div
+                    onClick={() => handleEnterDemo('USR-01')}
                     style={{
-                      padding: '10px 12px',
-                      backgroundColor: 'rgba(234, 179, 8, 0.15)',
-                      border: '1px solid #eab308',
-                      borderRadius: '6px',
-                      color: '#fef08a',
-                      fontSize: '12px',
-                      marginBottom: '14px',
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #3b82f6',
+                      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                      cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    <AlertCircle size={16} />
-                    <span>
-                      Production Mode Active: 1-Click Demo accounts are disabled. Please sign in with verified credentials on the Sign In tab.
-                    </span>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
-                  {demoUsers.map(user => {
-                    const isSelected = selectedDemoUserId === user.id;
-                    return (
-                      <div
-                        key={user.id}
-                        onClick={() => setSelectedDemoUserId(user.id)}
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          border: isSelected ? '2px solid #3b82f6' : '1px solid #334155',
-                          backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.12)' : '#0f172a',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontWeight: 600, fontSize: '13px', color: '#ffffff' }}>
-                              {user.name}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                padding: '1px 5px',
-                                borderRadius: '4px',
-                                backgroundColor:
-                                  user.role === 'owner'
-                                    ? '#1e3a8a'
-                                    : user.role === 'admin'
-                                    ? '#065f46'
-                                    : '#78350f',
-                                color:
-                                  user.role === 'owner'
-                                    ? '#93c5fd'
-                                    : user.role === 'admin'
-                                    ? '#6ee7b7'
-                                    : '#fde68a',
-                                textTransform: 'uppercase',
-                              }}
-                            >
-                              {user.role}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>{user.roleTitle}</span>
-                        </div>
-
-                        <div
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '13.5px', color: '#ffffff' }}>
+                          Er. Rakesh Sharma
+                        </span>
+                        <span
                           style={{
-                            width: '16px',
-                            height: '16px',
-                            borderRadius: '50%',
-                            border: isSelected ? '5px solid #3b82f6' : '2px solid #475569',
-                            backgroundColor: isSelected ? '#ffffff' : 'transparent',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: '#1e3a8a',
+                            color: '#93c5fd',
+                            textTransform: 'uppercase',
                           }}
-                        />
+                        >
+                          OWNER
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '3px' }}>
+                        Director &bull; Institute Owner Dashboard
+                      </div>
+                    </div>
+                    <Button variant="primary" size="sm" icon={<ArrowRight size={14} />}>
+                      Open
+                    </Button>
+                  </div>
 
-                <Button
-                  variant="primary"
-                  size="lg"
-                  style={{ width: '100%' }}
-                  icon={<ArrowRight size={16} />}
-                  iconPosition="right"
-                  disabled={isProduction}
-                  onClick={handleEnterDemo}
-                >
-                  {isProduction ? 'Demo Disabled in Production' : 'Enter Workspace as Selected Role'}
-                </Button>
+                  {/* Card 2: Teacher */}
+                  <div
+                    onClick={() => handleEnterDemo('USR-03')}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #10b981',
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '13.5px', color: '#ffffff' }}>
+                          Amit Upadhyay
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: '#064e3b',
+                            color: '#6ee7b7',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          TEACHER
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '3px' }}>
+                        Senior Maths Faculty &bull; Teacher Class Attendance
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" icon={<ArrowRight size={14} />} style={{ borderColor: '#10b981', color: '#34d399' }}>
+                      Open
+                    </Button>
+                  </div>
+
+                  {/* Card 3: Super Admin */}
+                  <div
+                    onClick={() => handleEnterDemo('USR-SUPERADMIN-01')}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #8b5cf6',
+                      backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '13.5px', color: '#ffffff' }}>
+                          Prashant Verma
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: '#4c1d95',
+                            color: '#c4b5fd',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          SUPER ADMIN
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '3px' }}>
+                        Platform Operations &bull; FIXIA Super Admin SaaS Portal
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" icon={<ArrowRight size={14} />} style={{ borderColor: '#8b5cf6', color: '#a78bfa' }}>
+                      Open
+                    </Button>
+                  </div>
+
+                  {/* Card 4: Front-Desk Admin */}
+                  <div
+                    onClick={() => handleEnterDemo('USR-02')}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #475569',
+                      backgroundColor: '#0f172a',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: '#ffffff' }}>
+                          Pooja Verma
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: '#065f46',
+                            color: '#6ee7b7',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          ADMIN
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '3px' }}>
+                        Front-Desk & Academic Coordinator
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" icon={<ArrowRight size={14} />}>
+                      Open
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
 

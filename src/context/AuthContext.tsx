@@ -323,11 +323,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginAsDemoUser = (userId: string) => {
-    // In production, block mock demo login
-    if (isProduction) {
-      setAuthError('Demo logins are disabled in production mode. Please authenticate using verified credentials.');
-      return;
-    }
     switchUser(userId);
   };
 

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { ShieldAlert, ArrowLeft, Loader2 } from 'lucide-react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { ShieldAlert, ArrowLeft, Loader2, ShieldCheck, GraduationCap, UserCheck, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
 import { UserRole } from '../../types';
@@ -11,7 +11,8 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-  const { isAuthenticated, currentUser, isLoading } = useAuth();
+  const { isAuthenticated, currentUser, isLoading, switchUser, logout } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
 
   if (isLoading) {
@@ -41,6 +42,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   if (allowedRoles && allowedRoles.length > 0) {
     const rawRole = (currentUser?.role || 'staff') as string;
     const isTeacher = rawRole === 'teacher' || rawRole === 'faculty';
+    const isSuperAdmin = rawRole === 'super_admin';
 
     // If teacher attempts to access an owner/admin restricted route, redirect directly to /teacher
     if (isTeacher && !allowedRoles.includes(rawRole as UserRole) && !allowedRoles.includes('staff')) {
@@ -48,7 +50,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     }
 
     // Special isolation: Super Admin portal (/superadmin) requires super_admin role
-    if (allowedRoles.includes('super_admin') && rawRole !== 'super_admin') {
+    if (allowedRoles.includes('super_admin') && !isSuperAdmin) {
       if (isTeacher) {
         return <Navigate to="/teacher" replace />;
       }
@@ -91,9 +93,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
             <Button
               variant="primary"
               icon={<ArrowLeft size={16} />}
-              onClick={() => (window.location.href = '/')}
+              onClick={() => navigate('/')}
             >
               Return to Institute Dashboard
+            </Button>
+            <Button
+              variant="outline"
+              icon={<ShieldCheck size={16} />}
+              onClick={() => {
+                switchUser('USR-SUPERADMIN-01');
+                navigate('/superadmin');
+              }}
+            >
+              Log in as Super Admin
             </Button>
           </div>
         </div>
@@ -109,18 +121,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
           style={{
             maxWidth: '540px',
             margin: '80px auto',
-            padding: '32px',
+            padding: '36px',
             backgroundColor: '#ffffff',
             border: '1px solid var(--color-border)',
-            borderRadius: '12px',
+            borderRadius: '16px',
             textAlign: 'center',
-            boxShadow: 'var(--shadow-sm)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)',
           }}
         >
           <div
             style={{
-              width: '56px',
-              height: '56px',
+              width: '60px',
+              height: '60px',
               borderRadius: '50%',
               backgroundColor: '#fef2f2',
               color: '#dc2626',
@@ -130,21 +142,65 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
               margin: '0 auto 16px auto',
             }}
           >
-            <ShieldAlert size={28} />
+            <ShieldAlert size={30} />
           </div>
-          <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>
-            Access Restricted: {currentUser?.roleTitle || 'Faculty Member'}
+          <h2 style={{ fontSize: '19px', fontWeight: 700, marginBottom: '8px', color: '#0f172a' }}>
+            Access Restricted: {currentUser?.roleTitle || 'Current User'}
           </h2>
           <p style={{ fontSize: '13.5px', color: 'var(--color-text-secondary)', lineHeight: 1.5, marginBottom: '24px' }}>
             Your account role (<strong>{(currentUser?.role || 'staff').toUpperCase()}</strong>) does not have authorization to view or manage this administrative section. Only institute owners and administrative coordinators can access this area.
           </p>
-          <Button
-            variant="primary"
-            icon={<ArrowLeft size={16} />}
-            onClick={() => (isTeacher ? (window.location.href = '/teacher') : window.history.back())}
-          >
-            {isTeacher ? 'Go to Teacher Class Portal' : 'Return to Authorized Dashboard'}
-          </Button>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {isSuperAdmin && (
+              <Button
+                variant="primary"
+                icon={<ShieldCheck size={16} />}
+                onClick={() => navigate('/superadmin')}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                Go to Super Admin Platform
+              </Button>
+            )}
+
+            {isTeacher && (
+              <Button
+                variant="primary"
+                icon={<GraduationCap size={16} />}
+                onClick={() => navigate('/teacher')}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                Go to Teacher Class Portal
+              </Button>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <Button
+                variant="outline"
+                icon={<UserCheck size={15} />}
+                onClick={() => {
+                  switchUser('USR-01'); // Er. Rakesh Sharma (Owner)
+                  navigate('/');
+                }}
+                style={{ flex: 1, justifyContent: 'center' }}
+                title="Switch to Institute Owner profile to access this dashboard"
+              >
+                Switch to Owner
+              </Button>
+
+              <Button
+                variant="outline"
+                icon={<LogOut size={15} />}
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+                style={{ flex: 1, justifyContent: 'center', color: '#ef4444' }}
+              >
+                Log Out
+              </Button>
+            </div>
+          </div>
         </div>
       );
     }

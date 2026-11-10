@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Wallet,
   ShieldCheck,
+  LogOut,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -23,7 +24,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { students, batches, instituteConfig } = useApp();
-  const { currentUser } = useAuth();
+  const { currentUser, switchUser, logout } = useAuth();
 
   return (
     <>
@@ -158,7 +159,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <NavLink
             to="/teacher"
             className="nav-item"
-            onClick={onClose}
+            onClick={() => {
+              if (currentUser?.role !== 'faculty' && currentUser?.role !== 'teacher') {
+                switchUser('USR-03');
+              }
+              onClose();
+            }}
             style={{
               backgroundColor: '#eff6ff',
               color: '#2563eb',
@@ -169,37 +175,61 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <span>Teacher Portal View</span>
           </NavLink>
 
-          {(currentUser?.role === 'super_admin' || !import.meta.env.PROD) && (
-            <NavLink
-              to="/superadmin"
-              className="nav-item"
-              onClick={onClose}
-              style={{
-                backgroundColor: '#0f172a',
-                color: '#38bdf8',
-                fontWeight: 600,
-                marginTop: '4px',
-              }}
-            >
-              <ShieldCheck size={18} />
-              <span>Super Admin Portal</span>
-            </NavLink>
-          )}
+          <NavLink
+            to="/superadmin"
+            className="nav-item"
+            onClick={() => {
+              if (currentUser?.role !== 'super_admin') {
+                switchUser('USR-SUPERADMIN-01');
+              }
+              onClose();
+            }}
+            style={{
+              backgroundColor: '#0f172a',
+              color: '#38bdf8',
+              fontWeight: 600,
+              marginTop: '4px',
+            }}
+          >
+            <ShieldCheck size={18} />
+            <span>Super Admin Portal</span>
+          </NavLink>
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-profile-tile">
-            <div className="user-avatar">
-              {currentUser.name
-                .split(' ')
-                .map(n => n[0])
-                .slice(0, 2)
-                .join('')}
+          <div className="user-profile-tile" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+              <div className="user-avatar">
+                {currentUser.name
+                  .split(' ')
+                  .map(n => n[0])
+                  .slice(0, 2)
+                  .join('')}
+              </div>
+              <div className="user-info">
+                <span className="user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser.name}</span>
+                <span className="user-role">{currentUser.roleTitle}</span>
+              </div>
             </div>
-            <div className="user-info">
-              <span className="user-name">{currentUser.name}</span>
-              <span className="user-role">{currentUser.roleTitle}</span>
-            </div>
+
+            <button
+              type="button"
+              onClick={logout}
+              title="Log out of current session"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-text-muted)',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>

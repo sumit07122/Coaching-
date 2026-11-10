@@ -13,7 +13,7 @@ import { useApp } from '../../context/AppContext';
 import { DemoBanner } from './DemoBanner';
 
 export const TeacherLayout: React.FC = () => {
-  const { currentUser, logout, isOwner, isAdmin } = useAuth();
+  const { currentUser, logout, isOwner, isAdmin, switchUser } = useAuth();
   const { instituteConfig } = useApp();
   const navigate = useNavigate();
 
@@ -71,23 +71,24 @@ export const TeacherLayout: React.FC = () => {
 
         {/* Header Right Actions */}
         <div className="teacher-header-actions">
-          {(isOwner || isAdmin) && (
-            <button
-              onClick={() => navigate('/')}
-              className="teacher-nav-link"
-              style={{
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                border: '1px solid #bfdbfe',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-              title="Return to Owner & Administrative Portal"
-            >
-              <ArrowLeftRight size={16} />
-              <span className="hide-on-mobile">Owner Portal</span>
-            </button>
-          )}
+          <button
+            onClick={() => {
+              switchUser('USR-01');
+              navigate('/');
+            }}
+            className="teacher-nav-link"
+            style={{
+              backgroundColor: '#eff6ff',
+              color: '#2563eb',
+              border: '1px solid #bfdbfe',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+            title="Switch to Owner Portal"
+          >
+            <ArrowLeftRight size={16} />
+            <span className="hide-on-mobile">Owner Portal</span>
+          </button>
 
           <div className="teacher-profile-pill hide-on-mobile">
             <div

@@ -19,7 +19,7 @@ import { Button } from '../common/Button';
 import '../../styles/superadmin.css';
 
 export const SuperAdminLayout: React.FC = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, switchUser } = useAuth();
   const { platformInstitutes, softwareLicenses } = useApp();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -114,7 +114,10 @@ export const SuperAdminLayout: React.FC = () => {
           }}
         >
           <button
-            onClick={() => navigate('/')}
+            onClick={() => {
+              switchUser('USR-01');
+              navigate('/');
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
